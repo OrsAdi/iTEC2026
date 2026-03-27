@@ -1,12 +1,13 @@
+// În app/_layout.tsx
 import { Stack } from 'expo-router';
 
-export default function RootLayout() {
+export default function Layout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      {/* Index este Login-ul */}
       <Stack.Screen name="index" />
-      {/* Feed este pagina ta principală de după login */}
-      <Stack.Screen name="feed" />
+      <Stack.Screen name="signup" />
+      <Stack.Screen name="home" />
     </Stack>
+
   );
 }
