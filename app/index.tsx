@@ -1,21 +1,19 @@
 import React, { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-// IMPORTĂM router
 import { useRouter } from 'expo-router';
 
 export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  
-  // INIȚIALIZĂM router
+
   const router = useRouter();
 
   const handleAuth = () => {
-    // O mică verificare să nu lăsăm câmpurile goale
     if (email.length > 0 && password.length >= 6) {
-      // NAVIGĂM CĂTRE HOME
-      router.replace('/home');
+      // Navigate to the Feed screen after successful auth.
+      // Use the route path (expo-router uses route segments like '/feed').
+      router.replace('/feed');
     } else {
       Alert.alert("Eroare", "Introdu un email valid și o parolă de minim 6 caractere.");
     }
@@ -29,20 +27,20 @@ export default function AuthScreen() {
         </View>
 
         <Text style={styles.title}>{isLogin ? 'Login' : 'Sign Up'}</Text>
-        
-        <TextInput 
-          style={styles.input} 
-          placeholder="Email" 
-          value={email} 
-          onChangeText={setEmail} 
-          autoCapitalize="none" 
+
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
         />
-        <TextInput 
-          style={styles.input} 
-          placeholder="Parolă" 
-          value={password} 
-          onChangeText={setPassword} 
-          secureTextEntry 
+        <TextInput
+          style={styles.input}
+          placeholder="Parolă"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
         />
 
         <TouchableOpacity style={styles.mainButton} onPress={handleAuth}>

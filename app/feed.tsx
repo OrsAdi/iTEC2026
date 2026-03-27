@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, FlatList, Image, TouchableOpacity, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import BottomNav from './components/BottomNav';
 
-// Date de test (Mock data) pentru posterele "vandalizate"
 const MOCK_POSTS = [
     {
         id: '1',
@@ -55,18 +55,21 @@ export default function FeedScreen() {
     );
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>OVERRIDE FEED</Text>
-            </View>
+        <>
+            <View style={[styles.container, { paddingBottom: 70 }]}>
+                <View style={styles.header}>
+                    <Text style={styles.headerTitle}>OVERRIDE FEED</Text>
+                </View>
 
-            <FlatList
-                data={posts}
-                renderItem={renderItem}
-                keyExtractor={(item) => item.id}
-                showsVerticalScrollIndicator={false}
-            />
-        </View>
+                <FlatList
+                    data={posts}
+                    renderItem={renderItem}
+                    keyExtractor={(item) => item.id}
+                    showsVerticalScrollIndicator={false}
+                />
+            </View>
+            <BottomNav />
+        </>
     );
 }
 
