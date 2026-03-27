@@ -61,7 +61,7 @@ export default function AuthScreen() {
 
   const handleLogin = () => {
     if (email.length > 3 && password.length >= 6) {
-      router.replace('/home');
+      router.replace('/feed');
     } else {
       Alert.alert("ACCESS DENIED", "Invalid credentials. System override failed.");
     }
