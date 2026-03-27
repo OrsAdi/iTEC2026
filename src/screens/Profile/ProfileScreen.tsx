@@ -40,7 +40,7 @@ const ProfileScreen = () => {
         </View>
 
         <View style={styles.infoSection}>
-          <Text style={styles.label}>ACRONIM ECHIPĂ</Text>
+          <Text style={styles.label}>ACRONIM</Text>
           <TextInput
             style={styles.input}
             value={userData.acronym}
@@ -48,6 +48,17 @@ const ProfileScreen = () => {
               setUserData({ ...userData, acronym: text })
             }
             maxLength={8}
+          />
+        </View>
+        <View style={styles.infoSection}>
+          <Text style={styles.label}>TEAM NAME</Text>
+          <TextInput
+            style={styles.input}
+            value={userData.teamName}
+            onChangeText={(text: string) =>
+              setUserData({ ...userData, teamName: text })
+            }
+            maxLength={20}
           />
         </View>
 
