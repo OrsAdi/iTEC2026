@@ -4,6 +4,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
     Alert,
     ImageBackground,
+    Modal,
     ScrollView,
     StyleSheet,
     Text,
@@ -72,6 +73,15 @@ export default function TeamScreen() {
     const [joinCode, setJoinCode] = useState('');
     const [teams, setTeams] = useState<TeamEntry[]>([]);
     const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
+    const [successModal, setSuccessModal] = useState<{
+        visible: boolean;
+        title: string;
+        message: string;
+    }>({
+        visible: false,
+        title: '',
+        message: '',
+    });
 
     const loadData = useCallback(async () => {
         const [allTeams, active] = await Promise.all([
@@ -115,7 +125,11 @@ export default function TeamScreen() {
         setTeamName('');
         setJoinCode('');
         await loadData();
-        Alert.alert('TEAM_CREATED', `Team ${safeName} is now active. Invite code: ${code}`);
+        setSuccessModal({
+            visible: true,
+            title: 'TEAM CREATED',
+            message: `Team ${safeName} is now active. Invite code: ${code}`,
+        });
     }, [teamName, teams, loadData]);
 
     const joinTeamByCode = useCallback(async () => {
@@ -138,7 +152,11 @@ export default function TeamScreen() {
         await AsyncStorage.setItem(ACTIVE_TEAM_KEY, found.id);
         setJoinCode('');
         await loadData();
-        Alert.alert('TEAM_JOINED', `You joined ${found.name}.`);
+        setSuccessModal({
+            visible: true,
+            title: 'TEAM JOINED',
+            message: `You joined ${found.name}.`,
+        });
     }, [joinCode, teams, loadData]);
 
     const quickJoin = useCallback(
@@ -148,7 +166,11 @@ export default function TeamScreen() {
             }
             await AsyncStorage.setItem(ACTIVE_TEAM_KEY, team.id);
             await loadData();
-            Alert.alert('TEAM_JOINED', `Active team switched to ${team.name}.`);
+            setSuccessModal({
+                visible: true,
+                title: 'TEAM JOINED',
+                message: `Active team switched to ${team.name}.`,
+            });
         },
         [loadData]
     );
@@ -255,6 +277,36 @@ export default function TeamScreen() {
 
                 <BottomNav activeTab="team" />
             </ImageBackground>
+
+            <Modal visible={successModal.visible} animationType="fade" transparent={true}>
+                <View style={styles.modalOverlay}>
+                    <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
+                        <View style={styles.alertHeaderBox}>
+                            <Text style={styles.alertHeaderTextMain}>TEAM</Text>
+                            <Text style={styles.alertHeaderTextSub}>STATUS</Text>
+                        </View>
+
+                        <View style={styles.successIconCircle}>
+                            <Text style={styles.successIconText}>✓</Text>
+                        </View>
+
+                        <Text style={styles.alertTitle}>{successModal.title}</Text>
+                        <Text style={styles.alertMessage}>{successModal.message}</Text>
+
+                        <TouchableOpacity
+                            style={styles.alertButton}
+                            onPress={() =>
+                                setSuccessModal((prev) => ({
+                                    ...prev,
+                                    visible: false,
+                                }))
+                            }
+                        >
+                            <Text style={styles.alertButtonText}>OK</Text>
+                        </TouchableOpacity>
+                    </BlurView>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -389,4 +441,72 @@ const styles = StyleSheet.create({
         letterSpacing: 1,
         fontSize: 12,
     },
+    modalOverlay: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+        backgroundColor: 'rgba(0,0,0,0.85)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    customAlertCard: {
+        width: '80%',
+        borderRadius: 25,
+        padding: 30,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(0, 122, 255, 0.4)',
+        overflow: 'hidden',
+        backgroundColor: 'rgba(0,0,0,0.45)',
+    },
+    alertHeaderBox: { flexDirection: 'row', marginBottom: 20 },
+    alertHeaderTextMain: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: 'bold',
+        letterSpacing: 2,
+    },
+    alertHeaderTextSub: {
+        color: '#007AFF',
+        fontSize: 14,
+        fontWeight: 'bold',
+        letterSpacing: 2,
+        marginLeft: 5,
+    },
+    successIconCircle: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: 'rgba(0, 255, 120, 0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 15,
+        borderWidth: 1,
+        borderColor: '#00FF78',
+    },
+    successIconText: { color: '#00FF78', fontSize: 24, fontWeight: 'bold' },
+    alertTitle: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
+        letterSpacing: 1,
+        marginBottom: 10,
+    },
+    alertMessage: {
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 12,
+        textAlign: 'center',
+        lineHeight: 18,
+        marginBottom: 25,
+    },
+    alertButton: {
+        backgroundColor: '#007AFF',
+        width: '100%',
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    alertButtonText: { color: '#fff', fontWeight: 'bold', letterSpacing: 1 },
 });
