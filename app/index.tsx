@@ -1,3 +1,4 @@
+import { supabase } from "@/app/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
@@ -17,6 +18,30 @@ import {
 } from "react-native";
 
 export default function AuthScreen() {
+  useEffect(() => {
+    // 1. Define the test function
+    async function pingSupabase() {
+      console.log("⏳ Pinging Supabase...");
+
+      // 2. Try to grab data from a table (even one that doesn't exist)
+      const { data, error } = await supabase
+        .from("test_table")
+        .select("*")
+        .limit(1);
+
+      // 3. Log the results directly to your terminal
+      if (error) {
+        // If the database responds saying "table doesn't exist",
+        // that means your connection was 100% successful!
+        console.log("✅ Connection works! Database replied:", error.message);
+      } else {
+        console.log("✅ Connection works! Data:", data);
+      }
+    }
+
+    // 4. Run it
+    pingSupabase();
+  }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const router = useRouter();
@@ -215,7 +240,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     paddingHorizontal: 15,
     minHeight: 64,
-    width: '100%',
+    width: "100%",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
   },
