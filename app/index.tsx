@@ -21,47 +21,30 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const router = useRouter();
   
-  // 1. Animații pentru efectul AGRESIV de puls și glitch
+  // Animații pentru efectul de puls al logo-ului (Digital Vandalism Style)
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // 2. Creăm o animație infinită, rapidă și puternică
+    // Animație infinită de tip "glitch/pulse"
     Animated.loop(
       Animated.parallel([
-        // Pulsație puternică (mărim scale-ul la 1.15)
         Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.15, // Efect mult mai vizibil
-            duration: 300, // Foarte rapid
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 300,
-            useNativeDriver: true,
-          }),
+          Animated.timing(pulseAnim, { toValue: 1.15, duration: 300, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
         ]),
-        // Adăugăm un pâlpâit rapid (opacity)
         Animated.sequence([
-          Animated.timing(opacityAnim, {
-            toValue: 0.7,
-            duration: 150,
-            useNativeDriver: true,
-          }),
-          Animated.timing(opacityAnim, {
-            toValue: 1,
-            duration: 150,
-            useNativeDriver: true,
-          }),
+          Animated.timing(opacityAnim, { toValue: 0.7, duration: 150, useNativeDriver: true }),
+          Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
         ]),
       ])
     ).start();
   }, []);
 
   const handleLogin = () => {
+    // Validare simplă pentru hackathon
     if (email.length > 3 && password.length >= 6) {
-      router.replace('/home');
+      router.replace('/feed'); // Te trimite la Canvas-ul de afișe
     } else {
       Alert.alert("ACCESS DENIED", "Invalid credentials. System override failed.");
     }
@@ -82,14 +65,8 @@ export default function AuthScreen() {
             <View style={styles.glassWrapper}>
               <BlurView intensity={90} tint="dark" style={styles.blurContainer}>
                 
-                {/* 3. APLICĂM ANIMAȚIA DE PULS ȘI OPACITATE PE LOGO */}
-                <Animated.View style={[
-                  styles.logoContainer, 
-                  { 
-                    transform: [{ scale: pulseAnim }], 
-                    opacity: opacityAnim // Adăugăm și pâlpâitul
-                  } 
-                ]}>
+                {/* Logo Animat GLITCH_TAG */}
+                <Animated.View style={[styles.logoContainer, { transform: [{ scale: pulseAnim }], opacity: opacityAnim }]}>
                   <View style={styles.logoBox}>
                     <Text style={styles.logoTextMain}>GLITCH_</Text>
                     <Text style={styles.logoTextSub}>TAG</Text>
@@ -125,12 +102,12 @@ export default function AuthScreen() {
                   </View>
 
                   <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-                    <Text style={styles.loginButtonText}>LOGIN</Text> 
+                    <Text style={styles.loginButtonText}>LOGIN</Text>
                   </TouchableOpacity>
                 </View>
 
                 <View style={styles.footer}>
-                  <TouchableOpacity onPress={() => router.push('/signup')}> 
+                  <TouchableOpacity onPress={() => router.push('/signup')}>
                     <Text style={styles.footerLink}>Request Access (Sign Up)</Text>
                   </TouchableOpacity>
                   <Text style={styles.credits}>VER. 1.0.26 | iTEC OVERRIDE</Text>
@@ -147,7 +124,6 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  // ... ACELEAȘI STILURI CA ANTERIOR ...
   container: { flex: 1 },
   background: { flex: 1, backgroundColor: '#000' },
   keyboardView: { flex: 1 },
@@ -189,7 +165,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  input: { flex: 1, color: '#fff', fontSize: 16, marginLeft: 10, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  input: { flex: 1, color: '#fff', fontSize: 16, marginLeft: 10 },
   loginButton: {
     backgroundColor: '#007AFF',
     height: 60,
