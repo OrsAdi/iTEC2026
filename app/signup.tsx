@@ -33,24 +33,24 @@ export default function SignUpScreen() {
         Animated.sequence([
           Animated.timing(pulseAnim, {
             toValue: 1.15, // Mărim efectul
-            duration: 300, // Mai rapid
+            duration: 2000, // Mai rapid
             useNativeDriver: true,
           }),
           Animated.timing(pulseAnim, {
             toValue: 1,
-            duration: 300,
+            duration: 2000,
             useNativeDriver: true,
           }),
         ]),
         Animated.sequence([
           Animated.timing(opacityAnim, {
             toValue: 0.7,
-            duration: 150,
+            duration: 2000,
             useNativeDriver: true,
           }),
           Animated.timing(opacityAnim, {
             toValue: 1,
-            duration: 150,
+            duration: 2000,
             useNativeDriver: true,
           }),
         ]),

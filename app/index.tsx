@@ -26,7 +26,7 @@ export default function AuthScreen() {
   const opacityAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Animație infinită de tip "glitch/pulse"
+    // Animație infinită, mai calmă pentru utilizare confortabilă pe mobil
     Animated.loop(
       Animated.parallel([
         Animated.sequence([
@@ -214,7 +214,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 15,
     paddingHorizontal: 15,
-    height: 60,
+    minHeight: 64,
+    width: "100%",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
   },

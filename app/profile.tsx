@@ -1,5 +1,5 @@
 import { BlurView } from "expo-blur";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   FlatList,
   Image,
@@ -14,8 +14,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { supabase } from "./lib/supabase";
 
-const ProfileScreen = () => {
+export default function ProfileScreen() {
   const availableAvatars = [
     { id: "1", uri: "https://api.dicebear.com/7.x/bottts/png?seed=1" },
     { id: "2", uri: "https://api.dicebear.com/7.x/bottts/png?seed=2" },
@@ -34,6 +35,66 @@ const ProfileScreen = () => {
   const [isAvatarModalVisible, setIsAvatarModalVisible] = useState(false);
   const [isAlertVisible, setIsAlertVisible] = useState(false);
 
+  // --- LOGICA SUPABASE ---
+
+  const fetchProfile = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        let { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single();
+
+        if (data) {
+          setUserData({
+            name: data.full_name || "",
+            email: user.email || "",
+            acronym: data.acronym || "",
+            teamName: data.team_name || "Fără Echipă",
+            avatar: data.avatar_url || availableAvatars[0].uri,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Eroare la descărcare:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const updates = {
+        id: user.id,
+        full_name: userData.name,
+        acronym: userData.acronym,
+        avatar_url: userData.avatar,
+        updated_at: new Date(),
+      };
+
+      let { error } = await supabase.from("profiles").upsert(updates);
+      if (error) throw error;
+
+      setIsAlertVisible(true);
+    } catch (error: any) {
+      alert("Error updating profile: " + (error.message || "Unknown error"));
+    }
+  };
+
+  // --- RENDER UI ---
+
   return (
     <View style={styles.background}>
       <SafeAreaView style={styles.container}>
@@ -42,10 +103,9 @@ const ProfileScreen = () => {
           style={styles.keyboardView}
         >
           <ScrollView contentContainerStyle={styles.scrollContainer}>
-            {}
+            {/* INCEPUT GLASS WRAPPER */}
             <View style={styles.glassWrapper}>
               <View style={styles.blurContainer}>
-                {}
                 <View style={styles.logoContainer}>
                   <View style={styles.logoBox}>
                     <Text style={styles.logoTextMain}>MY</Text>
@@ -53,7 +113,6 @@ const ProfileScreen = () => {
                   </View>
                 </View>
 
-                {}
                 <View style={styles.avatarSection}>
                   <TouchableOpacity
                     onPress={() => setIsAvatarModalVisible(true)}
@@ -78,21 +137,19 @@ const ProfileScreen = () => {
                 <Text style={styles.title}>USER INFORMATION</Text>
 
                 <View style={styles.form}>
-                  {}
                   <View style={styles.inputLabelGroup}>
                     <Text style={styles.microLabel}>NAME</Text>
                     <View style={styles.inputWrapper}>
                       <TextInput
                         style={styles.input}
                         value={userData.name}
-                        onChangeText={(text: string) =>
+                        onChangeText={(text) =>
                           setUserData({ ...userData, name: text })
                         }
                       />
                     </View>
                   </View>
 
-                  {}
                   <View style={styles.inputLabelGroup}>
                     <Text style={styles.microLabel}>EMAIL</Text>
                     <View style={[styles.inputWrapper, { opacity: 0.6 }]}>
@@ -102,7 +159,6 @@ const ProfileScreen = () => {
                     </View>
                   </View>
 
-                  {}
                   <View style={styles.inputLabelGroup}>
                     <Text style={styles.microLabel}>ACRONYM</Text>
                     <View style={styles.inputWrapper}>
@@ -112,7 +168,7 @@ const ProfileScreen = () => {
                           { color: "#007AFF", fontWeight: "bold" },
                         ]}
                         value={userData.acronym}
-                        onChangeText={(text: string) =>
+                        onChangeText={(text) =>
                           setUserData({ ...userData, acronym: text })
                         }
                         maxLength={8}
@@ -122,19 +178,21 @@ const ProfileScreen = () => {
 
                   <TouchableOpacity
                     style={styles.saveButton}
-                    onPress={() => setIsAlertVisible(true)}
+                    onPress={handleSave}
                   >
                     <Text style={styles.saveButtonText}>SAVE CHANGES</Text>
                   </TouchableOpacity>
                 </View>
 
                 <Text style={styles.credits}>iTEC OVERRIDE v1.0.26</Text>
-              </View>
-            </View>
+              </View>{" "}
+              {/* INCHIDE blurContainer */}
+            </View>{" "}
+            {/* INCHIDE glassWrapper */}
           </ScrollView>
         </KeyboardAvoidingView>
 
-        {}
+        {/* MODAL AVATAR */}
         <Modal
           visible={isAvatarModalVisible}
           animationType="fade"
@@ -149,11 +207,7 @@ const ProfileScreen = () => {
                 data={availableAvatars}
                 numColumns={2}
                 keyExtractor={(item) => item.id}
-                renderItem={({
-                  item,
-                }: {
-                  item: { id: string; uri: string };
-                }) => (
+                renderItem={({ item }) => (
                   <TouchableOpacity
                     onPress={() => {
                       setUserData({ ...userData, avatar: item.uri });
@@ -177,7 +231,8 @@ const ProfileScreen = () => {
             </BlurView>
           </View>
         </Modal>
-        {}
+
+        {/* CUSTOM ALERT */}
         <Modal visible={isAlertVisible} animationType="fade" transparent={true}>
           <View style={styles.modalOverlay}>
             <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
@@ -185,16 +240,13 @@ const ProfileScreen = () => {
                 <Text style={styles.alertHeaderTextMain}>PROFILE</Text>
                 <Text style={styles.alertHeaderTextSub}>STATUS</Text>
               </View>
-
               <View style={styles.successIconCircle}>
                 <Text style={styles.successIconText}>✓</Text>
               </View>
-
               <Text style={styles.alertTitle}>IDENTITY UPDATED</Text>
               <Text style={styles.alertMessage}>
                 User profile information has been successfully updated.
               </Text>
-
               <TouchableOpacity
                 style={styles.alertButton}
                 onPress={() => setIsAlertVisible(false)}
@@ -207,14 +259,13 @@ const ProfileScreen = () => {
       </SafeAreaView>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   background: { flex: 1, backgroundColor: "#001a33" },
   keyboardView: { flex: 1 },
   scrollContainer: { flexGrow: 1, justifyContent: "center", padding: 25 },
-
   glassWrapper: {
     borderRadius: 30,
     overflow: "hidden",
@@ -226,7 +277,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.6)",
   },
-
   avatarSection: { alignItems: "center", marginBottom: 25 },
   avatarTouch: { position: "relative", marginBottom: 12 },
   avatarImage: {
@@ -265,7 +315,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: "uppercase",
   },
-
   logoContainer: { marginBottom: 20 },
   logoBox: {
     flexDirection: "row",
@@ -290,13 +339,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     marginBottom: 5,
   },
-  subtitle: {
-    fontSize: 11,
-    color: "#888",
-    marginBottom: 25,
-    textTransform: "uppercase",
-  },
-
   form: { width: "100%" },
   inputLabelGroup: { marginBottom: 15, width: "100%" },
   microLabel: {
@@ -336,7 +378,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     letterSpacing: 2,
   },
-
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.85)",
@@ -360,7 +401,6 @@ const styles = StyleSheet.create({
   },
   footer: { marginTop: 20 },
   footerLink: { color: "#007AFF", fontWeight: "bold" },
-
   customAlertCard: {
     width: "80%",
     borderRadius: 25,
@@ -420,5 +460,3 @@ const styles = StyleSheet.create({
   alertButtonText: { color: "#fff", fontWeight: "bold", letterSpacing: 1 },
   credits: { color: "#444", fontSize: 10, marginTop: 25 },
 });
-
-export default ProfileScreen;
