@@ -79,10 +79,12 @@ export default function SignUpScreen() {
           style={styles.keyboardView}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContainer}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={styles.glassWrapper}>
               <BlurView intensity={90} tint="dark" style={styles.blurContainer}>
-                {/* 3. APLICĂM ANIMAȚIA AGRESIVĂ PE LOGO ȘI AICI */}
                 <Animated.View
                   style={[
                     styles.logoContainer,
@@ -166,7 +168,6 @@ export default function SignUpScreen() {
 }
 
 const styles = StyleSheet.create({
-  // ... ACELEAȘI STILURI CA ANTERIOR, ADAUGĂM logoContainer ...
   container: { flex: 1 },
   background: { flex: 1, backgroundColor: "#000" },
   keyboardView: { flex: 1 },
@@ -182,7 +183,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
-  logoContainer: { marginBottom: 30 }, // ADAUGĂ AICI
+  logoContainer: { marginBottom: 30 },
   logoBox: {
     flexDirection: "row",
     backgroundColor: "rgba(0, 122, 255, 0.1)",

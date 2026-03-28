@@ -1,20 +1,20 @@
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useState } from "react";
+import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function BottomNav({ activeTab = "" }: { activeTab?: string }) {
   const router = useRouter();
+  const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
 
   const handleLogout = () => {
-    Alert.alert("LOGOUT", "Ești sigur că vrei să ieși din cont?", [
-      { text: "CANCEL", style: "cancel" },
-      {
-        text: "LOGOUT",
-        style: "destructive",
-        onPress: () => router.replace("/"),
-      },
-    ]);
+    setIsLogoutModalVisible(true);
+  };
+
+  const confirmLogout = () => {
+    setIsLogoutModalVisible(false);
+    router.replace("/");
   };
 
   const getColor = (key: string) => {
@@ -108,6 +108,39 @@ export default function BottomNav({ activeTab = "" }: { activeTab?: string }) {
         </View>
         <Text style={styles.scanLabel}>Scan</Text>
       </TouchableOpacity>
+
+      <Modal visible={isLogoutModalVisible} animationType="fade" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
+            <View style={styles.alertHeaderBox}>
+              <Text style={styles.alertHeaderTextMain}>SESSION</Text>
+              <Text style={styles.alertHeaderTextSub}>STATUS</Text>
+            </View>
+
+            <View style={styles.successIconCircle}>
+              <Text style={styles.successIconText}>!</Text>
+            </View>
+
+            <Text style={styles.alertTitle}>LOGOUT CONFIRMATION</Text>
+            <Text style={styles.alertMessage}>
+              Are you sure you want to exit the current session?
+            </Text>
+
+            <View style={styles.alertActions}>
+              <TouchableOpacity
+                style={styles.alertCancelButton}
+                onPress={() => setIsLogoutModalVisible(false)}
+              >
+                <Text style={styles.alertCancelButtonText}>CANCEL</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.alertButton} onPress={confirmLogout}>
+                <Text style={styles.alertButtonText}>LOGOUT</Text>
+              </TouchableOpacity>
+            </View>
+          </BlurView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -188,4 +221,87 @@ const styles = StyleSheet.create({
     marginTop: 4,
     letterSpacing: 0.5,
   },
+  modalOverlay: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  customAlertCard: {
+    width: "80%",
+    borderRadius: 25,
+    padding: 30,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(0, 122, 255, 0.4)",
+    overflow: "hidden",
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  alertHeaderBox: { flexDirection: "row", marginBottom: 20 },
+  alertHeaderTextMain: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "bold",
+    letterSpacing: 2,
+  },
+  alertHeaderTextSub: {
+    color: "#007AFF",
+    fontSize: 14,
+    fontWeight: "bold",
+    letterSpacing: 2,
+    marginLeft: 5,
+  },
+  successIconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#ef4444",
+  },
+  successIconText: { color: "#ef4444", fontSize: 24, fontWeight: "bold" },
+  alertTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+    letterSpacing: 1,
+    marginBottom: 10,
+  },
+  alertMessage: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+  alertActions: {
+    width: "100%",
+    flexDirection: "row",
+    gap: 10,
+  },
+  alertCancelButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  alertCancelButtonText: { color: "#fff", fontWeight: "bold", letterSpacing: 1 },
+  alertButton: {
+    flex: 1,
+    backgroundColor: "#ef4444",
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  alertButtonText: { color: "#fff", fontWeight: "bold", letterSpacing: 1 },
 });
