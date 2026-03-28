@@ -14,13 +14,13 @@ import {
   View,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
-import BottomNav from "../components/BottomNav";
+import BottomNav from "./components/BottomNav"; // Corect (caută în folderul app/components)
 import {
   deletePoster,
   DrawPath,
   getAllPosters,
   PosterEntry,
-} from "../lib/storage";
+} from "./lib/storage"; // Corect
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const CARD_GAP = 12;

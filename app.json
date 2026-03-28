@@ -12,6 +12,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.glitchtag.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -25,30 +26,30 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-  "plugins": [
-  "expo-router",
-  [
-    "expo-splash-screen",
-    {
-      "image": "./assets/images/splash-icon.png",
-      "imageWidth": 200,
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    }
-  ],
-  [
-    "expo-camera",
-    {
-      "cameraPermission": "Allow GLITCH_TAG to use the camera."
-    }
-  ],
-  [
-    "expo-media-library",
-    {
-      "photosPermission": "Allow GLITCH_TAG to access photos.",
-      "savePhotosPermission": "Allow GLITCH_TAG to save photos."
-    }
-  ]
-]
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow GLITCH_TAG to use the camera."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow GLITCH_TAG to access photos.",
+          "savePhotosPermission": "Allow GLITCH_TAG to save photos."
+        }
+      ]
+    ]
   }
 }

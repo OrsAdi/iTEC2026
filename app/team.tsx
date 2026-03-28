@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import BottomNav from "../components/BottomNav";
+import BottomNav from "./components/BottomNav";
 
 export default function TeamScreen() {
   return (
