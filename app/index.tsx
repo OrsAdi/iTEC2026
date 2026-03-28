@@ -1,6 +1,6 @@
 import React from "react";
-import ProfileScreen from "../src/screens/Profile/ProfileScreen"; // Calea către fișierul tău
+import ProfileScreen from "../src/screens/Profile/ProfileScreen";
 
-export default function Page() {
+export default function ProfilePage() {
   return <ProfileScreen />;
 }

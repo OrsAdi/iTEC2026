@@ -1,3 +1,4 @@
+import { BlurView } from "expo-blur";
 import React, { useState } from "react";
 import {
   FlatList,
@@ -23,14 +24,15 @@ const ProfileScreen = () => {
   ];
 
   const [userData, setUserData] = useState({
-    name: "Codrin iTEC",
-    email: "codrin@itec.ro",
-    acronym: "ITEC2026",
-    teamName: "Echipa Racheta",
+    name: "Codrin Alberto",
+    email: "codrinalberti@gmail.com",
+    acronym: "SAFIRU",
+    teamName: "FC AutoUtilitarele SA",
     avatar: availableAvatars[0].uri,
   });
 
-  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isAvatarModalVisible, setIsAvatarModalVisible] = useState(false);
+  const [isAlertVisible, setIsAlertVisible] = useState(false);
 
   return (
     <View style={styles.background}>
@@ -40,10 +42,10 @@ const ProfileScreen = () => {
           style={styles.keyboardView}
         >
           <ScrollView contentContainerStyle={styles.scrollContainer}>
-            {/* Glass Wrapper pentru tot profilul */}
+            {}
             <View style={styles.glassWrapper}>
               <View style={styles.blurContainer}>
-                {/* Logo Style Header */}
+                {}
                 <View style={styles.logoContainer}>
                   <View style={styles.logoBox}>
                     <Text style={styles.logoTextMain}>MY</Text>
@@ -51,10 +53,10 @@ const ProfileScreen = () => {
                   </View>
                 </View>
 
-                {/* Avatar Section adaptat */}
-                <View style={styles.avatarWrapper}>
+                {}
+                <View style={styles.avatarSection}>
                   <TouchableOpacity
-                    onPress={() => setIsModalVisible(true)}
+                    onPress={() => setIsAvatarModalVisible(true)}
                     style={styles.avatarTouch}
                   >
                     <Image
@@ -65,63 +67,64 @@ const ProfileScreen = () => {
                       <Text style={styles.editBadgeText}>+</Text>
                     </View>
                   </TouchableOpacity>
-                </View>
 
-                <Text style={styles.title}>USER SETTINGS</Text>
-
-                <View style={styles.form}>
-                  {/* Name Input */}
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={styles.input}
-                      value={userData.name}
-                      onChangeText={(text: string) =>
-                        setUserData({ ...userData, name: text })
-                      }
-                      placeholder="NAME"
-                      placeholderTextColor="#444"
-                    />
-                  </View>
-
-                  {/* Email (Read Only style) */}
-                  <View style={[styles.inputWrapper, { opacity: 0.6 }]}>
-                    <Text style={[styles.input, { paddingTop: 18 }]}>
-                      {userData.email}
+                  <View style={styles.teamBadge}>
+                    <Text style={styles.teamBadgeText}>
+                      {userData.teamName}
                     </Text>
                   </View>
+                </View>
 
-                  {/* Acronym Input */}
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={styles.input}
-                      value={userData.acronym}
-                      onChangeText={(text: string) =>
-                        setUserData({ ...userData, acronym: text })
-                      }
-                      placeholder="ACRONYM"
-                      placeholderTextColor="#444"
-                      maxLength={8}
-                    />
+                <Text style={styles.title}>USER INFORMATION</Text>
+
+                <View style={styles.form}>
+                  {}
+                  <View style={styles.inputLabelGroup}>
+                    <Text style={styles.microLabel}>NAME</Text>
+                    <View style={styles.inputWrapper}>
+                      <TextInput
+                        style={styles.input}
+                        value={userData.name}
+                        onChangeText={(text: string) =>
+                          setUserData({ ...userData, name: text })
+                        }
+                      />
+                    </View>
                   </View>
 
-                  {/* Team Input */}
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={styles.input}
-                      value={userData.teamName}
-                      onChangeText={(text: string) =>
-                        setUserData({ ...userData, teamName: text })
-                      }
-                      placeholder="TEAM NAME"
-                      placeholderTextColor="#444"
-                    />
+                  {}
+                  <View style={styles.inputLabelGroup}>
+                    <Text style={styles.microLabel}>EMAIL</Text>
+                    <View style={[styles.inputWrapper, { opacity: 0.6 }]}>
+                      <Text style={[styles.input, { paddingTop: 18 }]}>
+                        {userData.email}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {}
+                  <View style={styles.inputLabelGroup}>
+                    <Text style={styles.microLabel}>ACRONYM</Text>
+                    <View style={styles.inputWrapper}>
+                      <TextInput
+                        style={[
+                          styles.input,
+                          { color: "#007AFF", fontWeight: "bold" },
+                        ]}
+                        value={userData.acronym}
+                        onChangeText={(text: string) =>
+                          setUserData({ ...userData, acronym: text })
+                        }
+                        maxLength={8}
+                      />
+                    </View>
                   </View>
 
                   <TouchableOpacity
-                    style={styles.loginButton}
-                    onPress={() => alert("Profile Updated")}
+                    style={styles.saveButton}
+                    onPress={() => setIsAlertVisible(true)}
                   >
-                    <Text style={styles.loginButtonText}>SAVE CHANGES</Text>
+                    <Text style={styles.saveButtonText}>SAVE CHANGES</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -131,15 +134,14 @@ const ProfileScreen = () => {
           </ScrollView>
         </KeyboardAvoidingView>
 
-        {/* Modal adaptat vizual */}
-        <Modal visible={isModalVisible} animationType="fade" transparent={true}>
+        {}
+        <Modal
+          visible={isAvatarModalVisible}
+          animationType="fade"
+          transparent={true}
+        >
           <View style={styles.modalOverlay}>
-            <View
-              style={[
-                styles.modalContainer,
-                { borderColor: "#007AFF", borderWidth: 1 },
-              ]}
-            >
+            <BlurView intensity={90} tint="dark" style={styles.modalContainer}>
               <Text style={[styles.title, { marginBottom: 20 }]}>
                 SELECT AVATAR
               </Text>
@@ -147,11 +149,15 @@ const ProfileScreen = () => {
                 data={availableAvatars}
                 numColumns={2}
                 keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
+                renderItem={({
+                  item,
+                }: {
+                  item: { id: string; uri: string };
+                }) => (
                   <TouchableOpacity
                     onPress={() => {
                       setUserData({ ...userData, avatar: item.uri });
-                      setIsModalVisible(false);
+                      setIsAvatarModalVisible(false);
                     }}
                     style={styles.avatarOption}
                   >
@@ -163,12 +169,39 @@ const ProfileScreen = () => {
                 )}
               />
               <TouchableOpacity
-                onPress={() => setIsModalVisible(false)}
+                onPress={() => setIsAvatarModalVisible(false)}
                 style={styles.footer}
               >
                 <Text style={styles.footerLink}>CANCEL</Text>
               </TouchableOpacity>
-            </View>
+            </BlurView>
+          </View>
+        </Modal>
+        {}
+        <Modal visible={isAlertVisible} animationType="fade" transparent={true}>
+          <View style={styles.modalOverlay}>
+            <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
+              <View style={styles.alertHeaderBox}>
+                <Text style={styles.alertHeaderTextMain}>PROFILE</Text>
+                <Text style={styles.alertHeaderTextSub}>STATUS</Text>
+              </View>
+
+              <View style={styles.successIconCircle}>
+                <Text style={styles.successIconText}>✓</Text>
+              </View>
+
+              <Text style={styles.alertTitle}>IDENTITY UPDATED</Text>
+              <Text style={styles.alertMessage}>
+                User profile information has been successfully updated.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.alertButton}
+                onPress={() => setIsAlertVisible(false)}
+              >
+                <Text style={styles.alertButtonText}>OK</Text>
+              </TouchableOpacity>
+            </BlurView>
           </View>
         </Modal>
       </SafeAreaView>
@@ -178,11 +211,10 @@ const ProfileScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  background: { flex: 1, backgroundColor: "#007AFF" },
+  background: { flex: 1, backgroundColor: "#001a33" },
   keyboardView: { flex: 1 },
   scrollContainer: { flexGrow: 1, justifyContent: "center", padding: 25 },
 
-  // Glassmorphism effect
   glassWrapper: {
     borderRadius: 30,
     overflow: "hidden",
@@ -195,13 +227,12 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.6)",
   },
 
-  // Avatar specific
-  avatarWrapper: { marginBottom: 30 },
-  avatarTouch: { position: "relative" },
+  avatarSection: { alignItems: "center", marginBottom: 25 },
+  avatarTouch: { position: "relative", marginBottom: 12 },
   avatarImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     borderWidth: 2,
     borderColor: "#007AFF",
   },
@@ -210,15 +241,31 @@ const styles = StyleSheet.create({
     bottom: 0,
     right: 0,
     backgroundColor: "#007AFF",
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
   },
-  editBadgeText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
+  editBadgeText: { color: "#fff", fontSize: 14, fontWeight: "bold" },
+  teamBadge: {
+    backgroundColor: "rgba(0, 122, 255, 0.15)",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(0, 122, 255, 0.3)",
+  },
+  teamBadgeText: {
+    color: "#007AFF",
+    fontSize: 10,
+    fontWeight: "bold",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
 
-  // Logo Style de la Login
   logoContainer: { marginBottom: 20 },
   logoBox: {
     flexDirection: "row",
@@ -236,7 +283,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginLeft: 5,
   },
-
   title: {
     fontSize: 18,
     fontWeight: "bold",
@@ -252,10 +298,19 @@ const styles = StyleSheet.create({
   },
 
   form: { width: "100%" },
+  inputLabelGroup: { marginBottom: 15, width: "100%" },
+  microLabel: {
+    color: "rgba(255, 255, 255, 0.4)",
+    fontSize: 9,
+    fontWeight: "bold",
+    marginBottom: 5,
+    marginLeft: 5,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+  },
   inputWrapper: {
     backgroundColor: "rgba(255, 255, 255, 0.05)",
     borderRadius: 12,
-    marginBottom: 12,
     paddingHorizontal: 15,
     height: 55,
     borderWidth: 1,
@@ -267,8 +322,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
   },
-
-  loginButton: {
+  saveButton: {
     backgroundColor: "#007AFF",
     height: 55,
     borderRadius: 12,
@@ -276,14 +330,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 15,
   },
-  loginButtonText: {
+  saveButtonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
     letterSpacing: 2,
   },
 
-  // Modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.85)",
@@ -291,11 +344,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalContainer: {
-    backgroundColor: "#111",
     width: "80%",
     borderRadius: 25,
     padding: 25,
     alignItems: "center",
+    overflow: "hidden",
   },
   avatarOption: { margin: 15 },
   avatarOptionImage: {
@@ -305,10 +358,67 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#444",
   },
-
   footer: { marginTop: 20 },
   footerLink: { color: "#007AFF", fontWeight: "bold" },
-  credits: { color: "#87c7ed", fontSize: 10, marginTop: 25 },
+
+  customAlertCard: {
+    width: "80%",
+    borderRadius: 25,
+    padding: 30,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(0, 122, 255, 0.4)",
+    overflow: "hidden",
+  },
+  alertHeaderBox: { flexDirection: "row", marginBottom: 20 },
+  alertHeaderTextMain: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "bold",
+    letterSpacing: 2,
+  },
+  alertHeaderTextSub: {
+    color: "#007AFF",
+    fontSize: 14,
+    fontWeight: "bold",
+    letterSpacing: 2,
+    marginLeft: 5,
+  },
+  successIconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "rgba(0, 255, 120, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#00FF78",
+  },
+  successIconText: { color: "#00FF78", fontSize: 24, fontWeight: "bold" },
+  alertTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+    letterSpacing: 1,
+    marginBottom: 10,
+  },
+  alertMessage: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 25,
+  },
+  alertButton: {
+    backgroundColor: "#007AFF",
+    width: "100%",
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  alertButtonText: { color: "#fff", fontWeight: "bold", letterSpacing: 1 },
+  credits: { color: "#444", fontSize: 10, marginTop: 25 },
 });
 
 export default ProfileScreen;
