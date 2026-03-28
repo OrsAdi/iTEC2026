@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons"; // Librăria de iconițe
+import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
 import { StyleSheet, View } from "react-native";
@@ -7,16 +7,16 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: false, // Ascundem titlul de sus
-        tabBarStyle: styles.tabBar, // Stilul bării de jos
-        tabBarActiveTintColor: "#007AFF", // Culoarea când e selectat
-        tabBarInactiveTintColor: "#888", // Culoarea când nu e selectat
-        tabBarShowLabel: true, // Afișăm textul (Feed, Profil, etc.)
+        headerShown: false,
+        tabBarStyle: styles.tabBar,
+        tabBarActiveTintColor: "#007AFF",
+        tabBarInactiveTintColor: "#888",
+        tabBarShowLabel: true,
         tabBarLabelStyle: { fontSize: 10, marginBottom: 5 },
       }}
     >
       <Tabs.Screen
-        name="index" // Acesta este Feed-ul
+        name="feed" // app/(tabs)/feed.tsx
         options={{
           title: "Feed",
           tabBarIcon: ({ color }) => (
@@ -25,7 +25,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="profile" // Acesta va fi Profilul tău
+        name="profile" // app/(tabs)/profile.tsx
         options={{
           title: "Profil",
           tabBarIcon: ({ color }) => (
@@ -68,13 +68,12 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: "#111", // Fundal închis ca în poză
+    backgroundColor: "rgba(10, 10, 10, 0.95)",
     borderTopWidth: 0,
-    elevation: 0,
     height: 70,
-    borderRadius: 30, // Rotunjirea bării
+    borderRadius: 30,
     position: "absolute",
-    bottom: 20, // O ridicăm puțin de jos
+    bottom: 20,
     left: 20,
     right: 20,
     paddingBottom: 10,
@@ -87,6 +86,6 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: -20, // Îl facem să sară puțin în sus (floating effect)
+    marginTop: -20,
   },
 });
