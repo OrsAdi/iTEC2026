@@ -1,4 +1,3 @@
-// În app/_layout.tsx
 import { Stack } from 'expo-router';
 
 export default function Layout() {
@@ -6,8 +5,10 @@ export default function Layout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="signup" />
-      <Stack.Screen name="home" />
+      <Stack.Screen name="feed" />
+      <Stack.Screen name="scan" />
+      <Stack.Screen name="editor" />
+      <Stack.Screen name="draw/[id]" />
     </Stack>
-
   );
 }
