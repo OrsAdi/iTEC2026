@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { useRouter } from 'expo-router';
+import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -123,6 +123,8 @@ export default function AuthScreen() {
                     </TouchableOpacity>
                     <Text style={styles.credits}>VER. 1.0.26 | iTEC OVERRIDE</Text>
                   </View>
+
+                </Animated.View>
 
               </BlurView>
             </View>
