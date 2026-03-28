@@ -22,15 +22,27 @@ export default function ScanScreen() {
   const router = useRouter();
 
   const handleCapture = useCallback(async () => {
-    if (!cameraRef.current || processing) return;
+    console.log("📸 handleCapture apelat");
+
+    if (!cameraRef.current) {
+      console.log("❌ Camera ref null");
+      return;
+    }
+    if (processing) {
+      console.log("❌ Processing în curs, ignorat");
+      return;
+    }
+
     setProcessing(true);
     setProcessingText("Capturez imaginea...");
 
     try {
+      console.log("📷 Încerc să fac poza...");
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.8,
         base64: false,
       });
+      console.log("📷 Poza făcută:", photo?.uri);
 
       if (!photo?.uri) throw new Error("Nu s-a putut captura fotografia.");
 
@@ -38,6 +50,7 @@ export default function ScanScreen() {
       await FileSystem.makeDirectoryAsync(destDir, { intermediates: true });
       const destUri = destDir + `poster_${Date.now()}.jpg`;
       await FileSystem.copyAsync({ from: photo.uri, to: destUri });
+      console.log("💾 Poza copiată la:", destUri);
 
       setProcessingText("Calculez hash-ul...");
       const hash = await computeHash(destUri);
@@ -46,19 +59,20 @@ export default function ScanScreen() {
       setProcessingText("Recunosc afișul...");
       const allPosters = await getAllPosters();
       console.log("📋 Afișe în storage:", allPosters.length);
+      allPosters.forEach(p => console.log("  - ID:", p.id, "| Hash length:", p.hash?.length));
 
       let duplicate = null;
       for (const poster of allPosters) {
-        console.log(`🔍 Compar cu posterul: ${poster.id}`);
+        console.log(`🔍 Compar cu: ${poster.id}`);
         const same = await isSamePosterAsync(poster.hash, hash);
-        console.log(`➡️ Rezultat comparare: ${same}`);
+        console.log(`➡️ Rezultat: ${same}`);
         if (same) {
           duplicate = poster;
           break;
         }
       }
 
-      console.log("🎯 Duplicat găsit:", duplicate?.id ?? "niciunul");
+      console.log("🎯 Duplicat:", duplicate?.id ?? "niciunul");
 
       if (duplicate) {
         Alert.alert(

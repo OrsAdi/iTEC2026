@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -15,6 +14,7 @@ import {
     View,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import BottomNav from './components/BottomNav';
 import { deletePoster, DrawPath, getAllPosters, PosterEntry } from './lib/storage';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -86,7 +86,6 @@ export default function FeedScreen() {
     useCallback(() => {
       setLoading(true);
       getAllPosters().then((all) => {
-        // Sortăm: cele cu desen primele, apoi după dată descrescător
         const sorted = [...all].sort((a, b) => {
           const aHasDrawing = a.drawingData !== '[]' && a.drawingData !== '';
           const bHasDrawing = b.drawingData !== '[]' && b.drawingData !== '';
@@ -173,24 +172,8 @@ export default function FeedScreen() {
           />
         )}
 
-        {/* Bottom Nav Bar */}
-        <BlurView intensity={90} tint="dark" style={styles.navbar}>
-          <TouchableOpacity style={styles.navItem} onPress={() => router.push('/feed')}>
-            <Ionicons name="images" size={24} color="#007AFF" />
-            <Text style={[styles.navLabel, { color: '#007AFF' }]}>FEED</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navScanBtn} onPress={() => router.push('/scan')}>
-            <View style={styles.navScanInner}>
-              <Ionicons name="camera" size={28} color="#fff" />
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navItem} onPress={() => router.push('/editor')}>
-            <Ionicons name="brush" size={24} color="#555" />
-            <Text style={styles.navLabel}>EDITOR</Text>
-          </TouchableOpacity>
-        </BlurView>
+        {/* Bottom Nav */}
+        <BottomNav activeTab="feed" />
       </ImageBackground>
     </View>
   );
@@ -268,30 +251,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 2,
   },
   badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  navbar: {
-    position: 'absolute',
-    bottom: 0, left: 0, right: 0,
-    height: 80,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingBottom: 10,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,122,255,0.3)',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    overflow: 'hidden',
-  },
-  navItem: { alignItems: 'center', flex: 1 },
-  navLabel: { color: '#555', fontSize: 10, marginTop: 3, letterSpacing: 1 },
-  navScanBtn: { alignItems: 'center', justifyContent: 'center', flex: 1 },
-  navScanInner: {
-    width: 56, height: 56,
-    borderRadius: 28,
-    backgroundColor: '#007AFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: 'rgba(0,122,255,0.4)',
-    marginBottom: 10,
-  },
 });
