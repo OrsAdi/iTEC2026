@@ -93,7 +93,10 @@ export default function ScanScreen() {
               text: "✏️ Editează",
               onPress: async () => {
                 await FileSystem.deleteAsync(destUri, { idempotent: true });
-                router.push({ pathname: '/[id]', params: { id: duplicate!.id } });
+                router.push({
+                  pathname: "/[id]",
+                  params: { id: duplicate!.id },
+                });
               },
             },
             {
@@ -109,12 +112,14 @@ export default function ScanScreen() {
                       text: "Șterge",
                       style: "destructive",
                       onPress: async () => {
-                        await FileSystem.deleteAsync(destUri, { idempotent: true });
+                        await FileSystem.deleteAsync(destUri, {
+                          idempotent: true,
+                        });
                         await deletePoster(duplicate!.id);
                         Alert.alert("✅ Șters", "Afișul a fost eliminat.");
                       },
                     },
-                  ]
+                  ],
                 );
               },
             },
@@ -125,7 +130,7 @@ export default function ScanScreen() {
                 await FileSystem.deleteAsync(destUri, { idempotent: true });
               },
             },
-          ]
+          ],
         );
       } else {
         const id = generateId();
@@ -167,7 +172,11 @@ export default function ScanScreen() {
   }, [processing, router]);
 
   if (!permission) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#007AFF" /></View>;
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
   }
 
   if (!permission.granted) {
@@ -219,13 +228,13 @@ export default function ScanScreen() {
             onPress={handleCapture}
             disabled={processing}
           >
-            {processing
-              ? <ActivityIndicator color="#007AFF" size="small" />
-              : <View style={styles.captureInner} />
-            }
+            {processing ? (
+              <ActivityIndicator color="#007AFF" size="small" />
+            ) : (
+              <View style={styles.captureInner} />
+            )}
           </TouchableOpacity>
         </View>
-
       </CameraView>
     </View>
   );
@@ -239,8 +248,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
   camera: { flex: 1 },
   center: {
-    flex: 1, alignItems: "center", justifyContent: "center",
-    padding: 24, backgroundColor: "#0f0f0f",
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: "#0f0f0f",
   },
   permText: { color: "#ccc", textAlign: "center", marginBottom: 16, fontSize: 15 },
   permBtn: { backgroundColor: "#007AFF", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
@@ -292,7 +304,8 @@ const styles = StyleSheet.create({
   // Colțuri chenar
   corner: {
     position: "absolute",
-    width: CORNER_SIZE, height: CORNER_SIZE,
+    width: CORNER_SIZE,
+    height: CORNER_SIZE,
     borderColor: "#007AFF",
   },
   topLeft: { top: 0, left: 0, borderTopWidth: CORNER_THICKNESS, borderLeftWidth: CORNER_THICKNESS },
@@ -303,26 +316,38 @@ const styles = StyleSheet.create({
   processingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.65)",
-    alignItems: "center", justifyContent: "center", gap: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
   },
   processingText: {
-    color: "#007AFF", fontSize: 13,
-    fontWeight: "600", letterSpacing: 1,
+    color: "#007AFF",
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: 1,
   },
 
   controls: {
-    position: "absolute", bottom: 50,
-    width: "100%", alignItems: "center",
+    position: "absolute",
+    bottom: 50,
+    width: "100%",
+    alignItems: "center",
   },
   captureBtn: {
-    width: 76, height: 76, borderRadius: 38,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: "rgba(0,122,255,0.15)",
-    borderWidth: 3, borderColor: "#007AFF",
-    alignItems: "center", justifyContent: "center",
+    borderWidth: 3,
+    borderColor: "#007AFF",
+    alignItems: "center",
+    justifyContent: "center",
   },
   captureBtnDisabled: { opacity: 0.4 },
   captureInner: {
-    width: 56, height: 56,
-    borderRadius: 28, backgroundColor: "#007AFF",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#007AFF",
   },
 });
