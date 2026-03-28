@@ -1,9 +1,11 @@
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system/legacy";
+import * as ImageManipulator from "expo-image-manipulator";
 import { useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
     ActivityIndicator, Alert,
+    Dimensions,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -12,6 +14,9 @@ import {
 
 import { computeHash, isSamePosterAsync } from "./lib/phash";
 import { deletePoster, generateId, getAllPosters, savePoster } from "./lib/storage";
+
+const FRAME_W = 260;
+const FRAME_H = 340;
 
 export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -22,62 +27,67 @@ export default function ScanScreen() {
   const router = useRouter();
 
   const handleCapture = useCallback(async () => {
-    console.log("📸 handleCapture apelat");
-
-    if (!cameraRef.current) {
-      console.log("❌ Camera ref null");
-      return;
-    }
-    if (processing) {
-      console.log("❌ Processing în curs, ignorat");
-      return;
-    }
+    if (!cameraRef.current || processing) return;
 
     setProcessing(true);
     setProcessingText("Capturez imaginea...");
 
     try {
-      console.log("📷 Încerc să fac poza...");
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.8,
         base64: false,
       });
-      console.log("📷 Poza făcută:", photo?.uri);
 
       if (!photo?.uri) throw new Error("Nu s-a putut captura fotografia.");
 
+      // Cropăm la dimensiunea chenarului
+      const screen = Dimensions.get('window');
+      const screenW = screen.width;
+      const screenH = screen.height;
+
+      const photoW = photo.width ?? screenW;
+      const photoH = photo.height ?? screenH;
+
+      const scaleX = photoW / screenW;
+      const scaleY = photoH / screenH;
+
+      const cropX = Math.floor(((screenW - FRAME_W) / 2) * scaleX);
+      const cropY = Math.floor(((screenH - FRAME_H) / 2) * scaleY);
+      const cropW = Math.floor(FRAME_W * scaleX);
+      const cropH = Math.floor(FRAME_H * scaleY);
+
+      setProcessingText("Procesez imaginea...");
+      const cropped = await ImageManipulator.manipulateAsync(
+        photo.uri,
+        [{ crop: { originX: cropX, originY: cropY, width: cropW, height: cropH } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
+
+      // Salvează imaginea cropată
       const destDir = FileSystem.documentDirectory + "posters/";
       await FileSystem.makeDirectoryAsync(destDir, { intermediates: true });
       const destUri = destDir + `poster_${Date.now()}.jpg`;
-      await FileSystem.copyAsync({ from: photo.uri, to: destUri });
-      console.log("💾 Poza copiată la:", destUri);
+      await FileSystem.copyAsync({ from: cropped.uri, to: destUri });
 
       setProcessingText("Calculez hash-ul...");
       const hash = await computeHash(destUri);
-      console.log("🔑 Hash calculat, lungime:", hash?.length);
 
       setProcessingText("Recunosc afișul...");
       const allPosters = await getAllPosters();
-      console.log("📋 Afișe în storage:", allPosters.length);
-      allPosters.forEach(p => console.log("  - ID:", p.id, "| Hash length:", p.hash?.length));
-
       let duplicate = null;
+
       for (const poster of allPosters) {
-        console.log(`🔍 Compar cu: ${poster.id}`);
         const same = await isSamePosterAsync(poster.hash, hash);
-        console.log(`➡️ Rezultat: ${same}`);
         if (same) {
           duplicate = poster;
           break;
         }
       }
 
-      console.log("🎯 Duplicat:", duplicate?.id ?? "niciunul");
-
       if (duplicate) {
         Alert.alert(
           "🎨 AFIȘ RECUNOSCUT",
-          `Am găsit "${duplicate.title}" în feed-ul tău!\nCe vrei să faci cu el?`,
+          `Am găsit "${duplicate.title}"!\nCe vrei să faci?`,
           [
             {
               text: "✏️ Editează",
@@ -91,8 +101,8 @@ export default function ScanScreen() {
               style: "destructive",
               onPress: () => {
                 Alert.alert(
-                  "Confirmi ștergerea?",
-                  `"${duplicate!.title}" va fi eliminat din feed.`,
+                  "Confirmi?",
+                  `"${duplicate!.title}" va fi eliminat.`,
                   [
                     { text: "Anulează", style: "cancel" },
                     {
@@ -101,7 +111,7 @@ export default function ScanScreen() {
                       onPress: async () => {
                         await FileSystem.deleteAsync(destUri, { idempotent: true });
                         await deletePoster(duplicate!.id);
-                        Alert.alert("✅ Șters", "Afișul a fost eliminat din feed.");
+                        Alert.alert("✅ Șters", "Afișul a fost eliminat.");
                       },
                     },
                   ]
@@ -128,25 +138,27 @@ export default function ScanScreen() {
           updatedAt: Date.now(),
           title: `Afiș ${new Date().toLocaleDateString("ro-RO")}`,
         });
-        console.log("💾 Afiș nou salvat cu id:", id);
 
         Alert.alert(
           "📌 AFIȘ NOU SALVAT",
-          "Afișul a fost adăugat în feed. Vrei să adaugi adnotări?",
+          "Afișul a fost adăugat în feed.",
           [
             {
-              text: "✏️ Desenează",
+              text: "✏️ Adnotează",
               onPress: () => router.push({ pathname: '/[id]', params: { id } }),
             },
             {
-              text: "📋 Mergi la Feed",
+              text: "📋 Feed",
               onPress: () => router.push('/feed'),
+            },
+            {
+              text: "📷 Scanează alt afiș",
+              style: "cancel",
             },
           ]
         );
       }
     } catch (err: any) {
-      console.log("❌ Eroare:", err?.message);
       Alert.alert("Eroare", err?.message ?? "Ceva nu a funcționat.");
     } finally {
       setProcessing(false);
@@ -175,9 +187,11 @@ export default function ScanScreen() {
     <View style={styles.container}>
       <CameraView ref={cameraRef} style={styles.camera} facing={facing}>
 
-        <View style={styles.overlay}>
-          <Text style={styles.topLabel}>SCAN_TARGET</Text>
-          <View style={styles.scanFrame}>
+        {/* Overlay întunecat în afara chenarului */}
+        <View style={styles.overlayTop} />
+        <View style={styles.overlayMiddle}>
+          <View style={styles.overlaySide} />
+          <View style={styles.frame}>
             <View style={[styles.corner, styles.topLeft]} />
             <View style={[styles.corner, styles.topRight]} />
             <View style={[styles.corner, styles.bottomLeft]} />
@@ -189,11 +203,16 @@ export default function ScanScreen() {
               </View>
             )}
           </View>
+          <View style={styles.overlaySide} />
+        </View>
+        <View style={styles.overlayBottom}>
+          <Text style={styles.topLabel}>SCAN_TARGET</Text>
           <Text style={styles.hint}>
             Centrează afișul în cadru și apasă butonul
           </Text>
         </View>
 
+        {/* Buton captură */}
         <View style={styles.controls}>
           <TouchableOpacity
             style={[styles.captureBtn, processing && styles.captureBtnDisabled]}
@@ -214,6 +233,7 @@ export default function ScanScreen() {
 
 const CORNER_SIZE = 24;
 const CORNER_THICKNESS = 3;
+const OVERLAY_COLOR = "rgba(0,0,0,0.55)";
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
@@ -222,30 +242,54 @@ const styles = StyleSheet.create({
     flex: 1, alignItems: "center", justifyContent: "center",
     padding: 24, backgroundColor: "#0f0f0f",
   },
-  permText: {
-    color: "#ccc", textAlign: "center",
-    marginBottom: 16, fontSize: 15,
-  },
-  permBtn: {
-    backgroundColor: "#007AFF",
-    paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10,
-  },
+  permText: { color: "#ccc", textAlign: "center", marginBottom: 16, fontSize: 15 },
+  permBtn: { backgroundColor: "#007AFF", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
   permBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-  overlay: { flex: 1, alignItems: "center", justifyContent: "center" },
+
+  // Overlay în afara chenarului
+  overlayTop: {
+    width: "100%",
+    backgroundColor: OVERLAY_COLOR,
+    flex: 1,
+  },
+  overlayMiddle: {
+    flexDirection: "row",
+    height: FRAME_H,
+  },
+  overlaySide: {
+    flex: 1,
+    backgroundColor: OVERLAY_COLOR,
+  },
+  overlayBottom: {
+    flex: 1,
+    width: "100%",
+    backgroundColor: OVERLAY_COLOR,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingTop: 16,
+  },
+
+  // Chenarul de scanare
+  frame: {
+    width: FRAME_W,
+    height: FRAME_H,
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   topLabel: {
     color: "#007AFF", fontSize: 11,
-    letterSpacing: 3, marginBottom: 16, fontWeight: "700",
-  },
-  scanFrame: {
-    width: 260, height: 340,
-    position: "relative",
-    alignItems: "center", justifyContent: "center",
+    letterSpacing: 3, fontWeight: "700",
+    marginBottom: 8,
   },
   hint: {
     color: "rgba(255,255,255,0.6)",
-    marginTop: 16, fontSize: 12,
-    textAlign: "center", paddingHorizontal: 32, letterSpacing: 0.5,
+    fontSize: 12, textAlign: "center",
+    paddingHorizontal: 32, letterSpacing: 0.5,
   },
+
+  // Colțuri chenar
   corner: {
     position: "absolute",
     width: CORNER_SIZE, height: CORNER_SIZE,
@@ -255,6 +299,7 @@ const styles = StyleSheet.create({
   topRight: { top: 0, right: 0, borderTopWidth: CORNER_THICKNESS, borderRightWidth: CORNER_THICKNESS },
   bottomLeft: { bottom: 0, left: 0, borderBottomWidth: CORNER_THICKNESS, borderLeftWidth: CORNER_THICKNESS },
   bottomRight: { bottom: 0, right: 0, borderBottomWidth: CORNER_THICKNESS, borderRightWidth: CORNER_THICKNESS },
+
   processingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.65)",
@@ -264,6 +309,7 @@ const styles = StyleSheet.create({
     color: "#007AFF", fontSize: 13,
     fontWeight: "600", letterSpacing: 1,
   },
+
   controls: {
     position: "absolute", bottom: 50,
     width: "100%", alignItems: "center",
