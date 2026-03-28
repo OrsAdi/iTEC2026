@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, FlatList, Image, TouchableOpacity, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, FlatList, Image, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import BottomNav from './components/BottomNav';
 
 const MOCK_POSTS = [
@@ -56,17 +57,29 @@ export default function FeedScreen() {
 
     return (
         <>
-            <View style={[styles.container, { paddingBottom: 70 }]}>
-                <View style={styles.header}>
-                    <Text style={styles.headerTitle}>OVERRIDE FEED</Text>
-                </View>
+            <View style={styles.background}>
+                <View style={styles.container}>
+                    <View style={styles.header}>
+                        {Platform.OS === 'web' ? (
+                            <View style={styles.headerGlass} />
+                        ) : (
+                            <BlurView intensity={80} tint="dark" style={styles.headerGlass} />
+                        )}
+                        <View style={styles.headerInner} pointerEvents="none">
+                            <View style={styles.logoLeft}>
+                                <Text style={styles.logoLeftText}>SYSTEM_OVERRIDE</Text>
+                            </View>
+                        </View>
+                    </View>
 
-                <FlatList
-                    data={posts}
-                    renderItem={renderItem}
-                    keyExtractor={(item) => item.id}
-                    showsVerticalScrollIndicator={false}
-                />
+                    <FlatList
+                        data={posts}
+                        renderItem={renderItem}
+                        keyExtractor={(item) => item.id}
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={{ paddingTop: 8, paddingBottom: 120 }}
+                    />
+                </View>
             </View>
             <BottomNav />
         </>
@@ -74,21 +87,62 @@ export default function FeedScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#050505' },
+    // slightly lighter, deep blue tone inspired by the login theme
+    background: { flex: 1, backgroundColor: '#1b3b6f' },
+    container: { flex: 1 },
     header: {
-        paddingTop: 50,
-        paddingBottom: 15,
-        borderBottomWidth: 0.5,
-        borderBottomColor: '#333',
+        paddingTop: 40,
+        paddingBottom: 6,
         alignItems: 'center',
+        marginBottom: 6,
     },
+    headerGlass: {
+        position: 'absolute',
+        left: 8,
+        right: 8,
+        top: 6,
+        bottom: 0,
+        borderRadius: 18,
+        overflow: 'hidden',
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.04)',
+        zIndex: 1,
+    },
+    headerInner: { zIndex: 5, width: '100%', alignItems: 'flex-start', paddingHorizontal: 8 },
     headerTitle: { color: '#00F0FF', fontSize: 20, fontWeight: 'bold', letterSpacing: 2 },
-    postContainer: { marginBottom: 20 },
-    postHeader: { flexDirection: 'row', alignItems: 'center', padding: 10 },
-    avatarPlaceholder: { width: 35, height: 35, borderRadius: 17.5, backgroundColor: '#333', marginRight: 10 },
-    username: { color: 'white', fontWeight: 'bold' },
-    postImage: { width: Dimensions.get('window').width, height: 400 },
-    actionRow: { flexDirection: 'row', padding: 10 },
-    captionContainer: { paddingHorizontal: 10 },
+    logoLeft: {
+        position: 'absolute',
+        left: 12,
+        top: 20,
+        paddingHorizontal: 10,
+        paddingTop: 12,
+        paddingBottom: 6,
+        borderRadius: 12,
+        borderWidth: 1,
+        // borderColor: 'rgba(255,255,255,0.12)',
+        backgroundColor: 'transparent',
+        zIndex: 20,
+    },
+    logoLeftText: { color: '#fff', fontWeight: '700', fontSize: 14, letterSpacing: 1 },
+    postContainer: {
+        marginHorizontal: 14,
+        marginBottom: 18,
+        borderRadius: 14,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.04)',
+        backgroundColor: 'rgba(0,0,0,0.35)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.4,
+        shadowRadius: 18,
+    },
+    postHeader: { flexDirection: 'row', alignItems: 'center', padding: 12 },
+    avatarPlaceholder: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#222', marginRight: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.04)' },
+    username: { color: '#fff', fontWeight: '700' },
+    postImage: { width: '100%', height: 220, backgroundColor: '#111' },
+    actionRow: { flexDirection: 'row', padding: 12, alignItems: 'center' },
+    captionContainer: { paddingHorizontal: 12, paddingBottom: 12 },
     captionText: { color: '#ccc', lineHeight: 18 },
 });
