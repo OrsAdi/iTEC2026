@@ -1,125 +1,176 @@
-import React from 'react';
-import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-export default function BottomNav() {
-    const router = useRouter();
+export default function BottomNav({ activeTab = '' }: { activeTab?: string }) {
+  const router = useRouter();
 
-    const tabs = [
-        // Reordered per request: Feed first, Profil second, Scan center, Echipă fourth, Setări last
-        { key: 'feed', icon: 'home-outline', label: 'Feed', route: '/feed' },
-        { key: 'profile', icon: 'person-outline', label: 'Profil', route: '/profile' },
-        { key: 'scan', icon: 'scan-outline', label: 'Scan', route: '/scan' },
-        { key: 'team', icon: 'people-outline', label: 'Echipă', route: '/team' },
-        { key: 'settings', icon: 'settings-outline', label: 'Setări', route: '/settings' },
-    ];
-
-    const nonScanTabs = tabs.filter((t) => t.key !== 'scan');
-    const leftTabs = nonScanTabs.slice(0, 2);
-    const rightTabs = nonScanTabs.slice(2);
-
-    return (
-        <View style={styles.container}>
-            <View style={styles.sideContainer}>
-                {leftTabs.map((t) => (
-                    <TouchableOpacity
-                        key={t.key}
-                        style={styles.tab}
-                        activeOpacity={0.7}
-                        onPress={() => router.replace(t.route as any)}
-                    >
-                        <Ionicons name={t.icon as any} size={24} color="#050505" />
-                        <Text style={styles.label}>{t.label}</Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
-
-            {/* Bump on the bar behind the scan button to create a small upward arc */}
-            <View style={styles.bump} />
-
-            {/* Scan button centered: half inside the bar, half above it, integrated with bar */}
-            <TouchableOpacity
-                style={styles.scanContainer}
-                activeOpacity={0.85}
-                onPress={() => router.replace('/scan' as any)}
-            >
-                <View style={styles.scanButton}>
-                    <Ionicons name={'scan-outline' as any} size={34} color="#00F0FF" />
-                </View>
-                <Text style={styles.scanLabel}>Scan</Text>
-            </TouchableOpacity>
-
-            <View style={styles.sideContainer}>
-                {rightTabs.map((t) => (
-                    <TouchableOpacity
-                        key={t.key}
-                        style={styles.tab}
-                        activeOpacity={0.7}
-                        onPress={() => router.replace(t.route as any)}
-                    >
-                        <Ionicons name={t.icon as any} size={24} color="#050505" />
-                        <Text style={styles.label}>{t.label}</Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
-        </View>
+  const handleLogout = () => {
+    Alert.alert(
+      'LOGOUT',
+      'Ești sigur că vrei să ieși din cont?',
+      [
+        { text: 'CANCEL', style: 'cancel' },
+        {
+          text: 'LOGOUT',
+          style: 'destructive',
+          onPress: () => router.replace('/'),
+        },
+      ]
     );
+  };
+
+  const getColor = (key: string) => {
+    if (key === 'logout') return '#ef4444';
+    return activeTab === key ? '#007AFF' : '#555';
+  };
+
+  // 2 tab-uri stânga, buton scan centru, 2 tab-uri dreapta — perfect simetric
+  const leftTabs = [
+    { key: 'feed', icon: 'home-outline', label: 'Feed', route: '/feed' },
+    { key: 'profile', icon: 'person-outline', label: 'Profil', route: '/profile' },
+  ];
+
+  const rightTabs = [
+    { key: 'team', icon: 'people-outline', label: 'Echipă', route: '/team' },
+    { key: 'logout', icon: 'log-out-outline', label: 'Logout', route: null },
+  ];
+
+  return (
+    <View style={styles.wrapper}>
+      {/* Blur background */}
+      <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
+
+      {/* Border top */}
+      <View style={styles.borderTop} />
+
+      {/* Conținut navbar */}
+      <View style={styles.content}>
+        {/* Stânga */}
+        <View style={styles.side}>
+          {leftTabs.map((t) => (
+            <TouchableOpacity
+              key={t.key}
+              style={styles.tab}
+              activeOpacity={0.7}
+              onPress={() => router.push(t.route as any)}
+            >
+              <Ionicons name={t.icon as any} size={22} color={getColor(t.key)} />
+              <Text style={[styles.label, { color: getColor(t.key) }]}>{t.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Centru — spațiu pentru butonul scan care iese deasupra */}
+        <View style={styles.centerSpace} />
+
+        {/* Dreapta */}
+        <View style={styles.side}>
+          {rightTabs.map((t) => (
+            <TouchableOpacity
+              key={t.key}
+              style={styles.tab}
+              activeOpacity={0.7}
+              onPress={() => {
+                if (t.key === 'logout') handleLogout();
+                else router.push(t.route as any);
+              }}
+            >
+              <Ionicons name={t.icon as any} size={22} color={getColor(t.key)} />
+              <Text style={[styles.label, { color: getColor(t.key) }]}>{t.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Buton Scan — poziționat absolut, iese deasupra barei */}
+      <TouchableOpacity
+        style={styles.scanBtn}
+        activeOpacity={0.85}
+        onPress={() => router.push('/scan')}
+      >
+        <View style={styles.scanCircle}>
+          <Ionicons name="camera" size={28} color="#fff" />
+        </View>
+        <Text style={styles.scanLabel}>Scan</Text>
+      </TouchableOpacity>
+    </View>
+  );
 }
 
-const styles = StyleSheet.create({
-    container: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 0,
-        height: 80,
-        backgroundColor: '#ffffff',
-        // remove top separator so navbar blends with page content
-        borderTopWidth: 0,
-        borderTopColor: 'transparent',
-        // subtle shadow to lift the navbar above the page content
-        // iOS
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        // Android
-        elevation: 8,
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-        paddingBottom: 10,
-    },
-    label: { color: '#333', fontSize: 11, marginTop: 2 },
-    scanContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: -15, // reduced so scan button sits slightly lower in the bar
-        zIndex: 20,
-    },
-    scanButton: {
-        width: 35,
-        height: 35,
-        borderRadius: 50,
-        backgroundColor: '#ffffff',
-        alignItems: 'center',
-        justifyContent: 'center',
-        // shadow removed per request — button will appear flat
-    },
-    scanLabel: { color: '#333', fontSize: 11, marginTop: 6 },
-    sideContainer: { flexDirection: 'row', width: '40%', justifyContent: 'space-around', alignItems: 'center' },
+const NAVBAR_H = 75;
+const SCAN_SIZE = 60;
 
-    tab: { alignItems: 'center', justifyContent: 'center', padding: 6 },
-    bump: {
-        position: 'absolute',
-        top: -10,
-        alignSelf: 'center',
-        width: 90,
-        height: 40,
-        backgroundColor: '#ffffff',
-        borderTopLeftRadius: 44,
-        borderTopRightRadius: 44,
-        zIndex: 15,
-    },
+const styles = StyleSheet.create({
+  wrapper: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: NAVBAR_H,
+  },
+  borderTop: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    height: 1,
+    backgroundColor: 'rgba(0,122,255,0.3)',
+    zIndex: 2,
+  },
+  content: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 8,
+  },
+  side: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  centerSpace: {
+    width: SCAN_SIZE + 16,
+  },
+  tab: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    paddingTop: 8,
+  },
+  label: {
+    fontSize: 9,
+    marginTop: 3,
+    letterSpacing: 0.5,
+  },
+
+  // Scan button — iese deasupra barei
+  scanBtn: {
+    position: 'absolute',
+    top: -(SCAN_SIZE / 2) - 4,
+    alignSelf: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  scanCircle: {
+    width: SCAN_SIZE,
+    height: SCAN_SIZE,
+    borderRadius: SCAN_SIZE / 2,
+    backgroundColor: '#007AFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(0,122,255,0.5)',
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  scanLabel: {
+    color: '#007AFF',
+    fontSize: 9,
+    marginTop: 4,
+    letterSpacing: 0.5,
+  },
 });
