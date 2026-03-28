@@ -1,13 +1,9 @@
-<<<<<<<<< Temporary merge branch 1
-import React, { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-=========
-import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
->>>>>>>>> Temporary merge branch 2
-import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import { useRouter } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   ImageBackground,
   KeyboardAvoidingView,
@@ -21,26 +17,22 @@ import {
 } from "react-native";
 
 export default function AuthScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-<<<<<<<<< Temporary merge branch 1
-
-=========
->>>>>>>>> Temporary merge branch 2
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const router = useRouter();
-  
-  // 1. Animații pentru efectul AGRESIV de puls și glitch
+
+  // Animații pentru efectul de puls al logo-ului (Digital Vandalism Style)
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // 2. Creăm o animație infinită, rapidă și puternică
+    // Animație infinită de tip "glitch/pulse"
     Animated.loop(
       Animated.parallel([
         Animated.sequence([
           Animated.timing(pulseAnim, {
-            toValue: 1.15, // Efect mult mai vizibil
-            duration: 300, // Foarte rapid
+            toValue: 1.15,
+            duration: 300,
             useNativeDriver: true,
           }),
           Animated.timing(pulseAnim, {
@@ -50,19 +42,30 @@ export default function AuthScreen() {
           }),
         ]),
         Animated.sequence([
-          Animated.timing(opacityAnim, { toValue: 0.7, duration: 150, useNativeDriver: true }),
-          Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+          Animated.timing(opacityAnim, {
+            toValue: 0.7,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacityAnim, {
+            toValue: 1,
+            duration: 150,
+            useNativeDriver: true,
+          }),
         ]),
       ]),
     ).start();
   }, []);
 
   const handleLogin = () => {
+    // Validare simplă pentru hackathon
     if (email.length > 3 && password.length >= 6) {
-      router.replace('/home');
->>>>>>>>> Temporary merge branch 2
+      router.replace("/feed"); // Te trimite la Canvas-ul de afișe
     } else {
-      Alert.alert("ACCESS DENIED", "Invalid credentials. System override failed.");
+      Alert.alert(
+        "ACCESS DENIED",
+        "Invalid credentials. System override failed.",
+      );
     }
   };
 
@@ -84,42 +87,23 @@ export default function AuthScreen() {
           >
             <View style={styles.glassWrapper}>
               <BlurView intensity={90} tint="dark" style={styles.blurContainer}>
-                
-                {/* 3. APLICĂM ANIMAȚIA DE PULS ȘI OPACITATE PE LOGO */}
-                <Animated.View style={[
-                  styles.logoContainer, 
-                  { 
-                    transform: [{ scale: pulseAnim }], 
-                    opacity: opacityAnim // Adăugăm și pâlpâitul
-                  } 
-                ]}>
+                {/* Logo Animat GLITCH_TAG */}
+                <Animated.View
+                  style={[
+                    styles.logoContainer,
+                    { transform: [{ scale: pulseAnim }], opacity: opacityAnim },
+                  ]}
+                >
                   <View style={styles.logoBox}>
                     <Text style={styles.logoTextMain}>GLITCH_</Text>
                     <Text style={styles.logoTextSub}>TAG</Text>
                   </View>
                 </Animated.View>
 
-<<<<<<<<< Temporary merge branch 1
-        <Text style={styles.title}>{isLogin ? 'Login' : 'Sign Up'}</Text>
-
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Parolă"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-=========
                 <Text style={styles.title}>SYSTEM_OVERRIDE</Text>
-                <Text style={styles.subtitle}>Ready for digital vandalism?</Text>
->>>>>>>>> Temporary merge branch 2
+                <Text style={styles.subtitle}>
+                  Ready for digital vandalism?
+                </Text>
 
                 <View style={styles.form}>
                   <View style={styles.inputWrapper}>
@@ -137,6 +121,7 @@ export default function AuthScreen() {
                       autoCapitalize="none"
                     />
                   </View>
+
                   <View style={styles.inputWrapper}>
                     <Ionicons
                       name="lock-closed-outline"
@@ -153,18 +138,24 @@ export default function AuthScreen() {
                     />
                   </View>
 
-                  <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-                    <Text style={styles.loginButtonText}>LOGIN</Text> 
+                  <TouchableOpacity
+                    style={styles.loginButton}
+                    onPress={handleLogin}
+                  >
+                    <Text style={styles.loginButtonText}>LOGIN</Text>
                   </TouchableOpacity>
                 </View>
 
                 <View style={styles.footer}>
-                  <TouchableOpacity onPress={() => router.push('/signup')}> 
-                    <Text style={styles.footerLink}>Request Access (Sign Up)</Text>
+                  <TouchableOpacity onPress={() => router.push("/signup")}>
+                    <Text style={styles.footerLink}>
+                      Request Access (Sign Up)
+                    </Text>
                   </TouchableOpacity>
-                  <Text style={styles.credits}>VER. 1.0.26 | iTEC OVERRIDE</Text>
+                  <Text style={styles.credits}>
+                    VER. 1.0.26 | iTEC OVERRIDE
+                  </Text>
                 </View>
-
               </BlurView>
             </View>
           </ScrollView>
@@ -209,6 +200,12 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     marginBottom: 5,
   },
+  subtitle: {
+    fontSize: 13,
+    color: "#888",
+    marginBottom: 35,
+    textTransform: "uppercase",
+  },
   form: { width: "100%" },
   inputWrapper: {
     flexDirection: "row",
@@ -221,7 +218,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
   },
-  input: { flex: 1, color: '#fff', fontSize: 16, marginLeft: 10, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  input: { flex: 1, color: "#fff", fontSize: 16, marginLeft: 10 },
   loginButton: {
     backgroundColor: "#007AFF",
     height: 60,
@@ -236,4 +233,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     letterSpacing: 2,
   },
+  footer: { marginTop: 30, alignItems: "center" },
+  footerLink: { color: "#007AFF", fontWeight: "bold", fontSize: 14 },
+  credits: { color: "#444", fontSize: 10, marginTop: 25 },
 });

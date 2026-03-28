@@ -1,40 +1,41 @@
-import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import { useRouter } from 'expo-router';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import { useRouter } from "expo-router";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-export default function BottomNav({ activeTab = '' }: { activeTab?: string }) {
+export default function BottomNav({ activeTab = "" }: { activeTab?: string }) {
   const router = useRouter();
 
   const handleLogout = () => {
-    Alert.alert(
-      'LOGOUT',
-      'Ești sigur că vrei să ieși din cont?',
-      [
-        { text: 'CANCEL', style: 'cancel' },
-        {
-          text: 'LOGOUT',
-          style: 'destructive',
-          onPress: () => router.replace('/'),
-        },
-      ]
-    );
+    Alert.alert("LOGOUT", "Ești sigur că vrei să ieși din cont?", [
+      { text: "CANCEL", style: "cancel" },
+      {
+        text: "LOGOUT",
+        style: "destructive",
+        onPress: () => router.replace("/"),
+      },
+    ]);
   };
 
   const getColor = (key: string) => {
-    if (key === 'logout') return '#ef4444';
-    return activeTab === key ? '#007AFF' : '#555';
+    if (key === "logout") return "#ef4444";
+    return activeTab === key ? "#007AFF" : "#555";
   };
 
   // 2 tab-uri stânga, buton scan centru, 2 tab-uri dreapta — perfect simetric
   const leftTabs = [
-    { key: 'feed', icon: 'home-outline', label: 'Feed', route: '/feed' },
-    { key: 'profile', icon: 'person-outline', label: 'Profil', route: '/profile' },
+    { key: "feed", icon: "home-outline", label: "Feed", route: "/feed" },
+    {
+      key: "profile",
+      icon: "person-outline",
+      label: "Profil",
+      route: "/profile",
+    },
   ];
 
   const rightTabs = [
-    { key: 'team', icon: 'people-outline', label: 'Echipă', route: '/team' },
-    { key: 'logout', icon: 'log-out-outline', label: 'Logout', route: null },
+    { key: "team", icon: "people-outline", label: "Echipă", route: "/team" },
+    { key: "logout", icon: "log-out-outline", label: "Logout", route: null },
   ];
 
   return (
@@ -56,8 +57,14 @@ export default function BottomNav({ activeTab = '' }: { activeTab?: string }) {
               activeOpacity={0.7}
               onPress={() => router.push(t.route as any)}
             >
-              <Ionicons name={t.icon as any} size={22} color={getColor(t.key)} />
-              <Text style={[styles.label, { color: getColor(t.key) }]}>{t.label}</Text>
+              <Ionicons
+                name={t.icon as any}
+                size={22}
+                color={getColor(t.key)}
+              />
+              <Text style={[styles.label, { color: getColor(t.key) }]}>
+                {t.label}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -73,12 +80,18 @@ export default function BottomNav({ activeTab = '' }: { activeTab?: string }) {
               style={styles.tab}
               activeOpacity={0.7}
               onPress={() => {
-                if (t.key === 'logout') handleLogout();
+                if (t.key === "logout") handleLogout();
                 else router.push(t.route as any);
               }}
             >
-              <Ionicons name={t.icon as any} size={22} color={getColor(t.key)} />
-              <Text style={[styles.label, { color: getColor(t.key) }]}>{t.label}</Text>
+              <Ionicons
+                name={t.icon as any}
+                size={22}
+                color={getColor(t.key)}
+              />
+              <Text style={[styles.label, { color: getColor(t.key) }]}>
+                {t.label}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -88,7 +101,7 @@ export default function BottomNav({ activeTab = '' }: { activeTab?: string }) {
       <TouchableOpacity
         style={styles.scanBtn}
         activeOpacity={0.85}
-        onPress={() => router.push('/scan')}
+        onPress={() => router.push("/scan")}
       >
         <View style={styles.scanCircle}>
           <Ionicons name="camera" size={28} color="#fff" />
@@ -104,37 +117,39 @@ const SCAN_SIZE = 60;
 
 const styles = StyleSheet.create({
   wrapper: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
     height: NAVBAR_H,
   },
   borderTop: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     height: 1,
-    backgroundColor: 'rgba(0,122,255,0.3)',
+    backgroundColor: "rgba(0,122,255,0.3)",
     zIndex: 2,
   },
   content: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingBottom: 8,
   },
   side: {
     flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
   },
   centerSpace: {
     width: SCAN_SIZE + 16,
   },
   tab: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     flex: 1,
     paddingTop: 8,
   },
@@ -146,29 +161,29 @@ const styles = StyleSheet.create({
 
   // Scan button — iese deasupra barei
   scanBtn: {
-    position: 'absolute',
+    position: "absolute",
     top: -(SCAN_SIZE / 2) - 4,
-    alignSelf: 'center',
-    alignItems: 'center',
+    alignSelf: "center",
+    alignItems: "center",
     zIndex: 10,
   },
   scanCircle: {
     width: SCAN_SIZE,
     height: SCAN_SIZE,
     borderRadius: SCAN_SIZE / 2,
-    backgroundColor: '#007AFF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#007AFF",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 3,
-    borderColor: 'rgba(0,122,255,0.5)',
-    shadowColor: '#007AFF',
+    borderColor: "rgba(0,122,255,0.5)",
+    shadowColor: "#007AFF",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 10,
   },
   scanLabel: {
-    color: '#007AFF',
+    color: "#007AFF",
     fontSize: 9,
     marginTop: 4,
     letterSpacing: 0.5,
