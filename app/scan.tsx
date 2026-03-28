@@ -3,15 +3,21 @@ import * as FileSystem from "expo-file-system/legacy";
 import { useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
-    ActivityIndicator, Alert,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import { computeHash, isSamePosterAsync } from "./lib/phash";
-import { deletePoster, generateId, getAllPosters, savePoster } from "./lib/storage";
+import {
+  deletePoster,
+  generateId,
+  getAllPosters,
+  savePoster,
+} from "./lib/storage";
 
 export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -59,7 +65,9 @@ export default function ScanScreen() {
       setProcessingText("Recunosc afișul...");
       const allPosters = await getAllPosters();
       console.log("📋 Afișe în storage:", allPosters.length);
-      allPosters.forEach(p => console.log("  - ID:", p.id, "| Hash length:", p.hash?.length));
+      allPosters.forEach((p) =>
+        console.log("  - ID:", p.id, "| Hash length:", p.hash?.length),
+      );
 
       let duplicate = null;
       for (const poster of allPosters) {
@@ -83,7 +91,10 @@ export default function ScanScreen() {
               text: "✏️ Editează",
               onPress: async () => {
                 await FileSystem.deleteAsync(destUri, { idempotent: true });
-                router.push({ pathname: '/[id]', params: { id: duplicate!.id } });
+                router.push({
+                  pathname: "/[id]",
+                  params: { id: duplicate!.id },
+                });
               },
             },
             {
@@ -99,12 +110,17 @@ export default function ScanScreen() {
                       text: "Șterge",
                       style: "destructive",
                       onPress: async () => {
-                        await FileSystem.deleteAsync(destUri, { idempotent: true });
+                        await FileSystem.deleteAsync(destUri, {
+                          idempotent: true,
+                        });
                         await deletePoster(duplicate!.id);
-                        Alert.alert("✅ Șters", "Afișul a fost eliminat din feed.");
+                        Alert.alert(
+                          "✅ Șters",
+                          "Afișul a fost eliminat din feed.",
+                        );
                       },
                     },
-                  ]
+                  ],
                 );
               },
             },
@@ -115,7 +131,7 @@ export default function ScanScreen() {
                 await FileSystem.deleteAsync(destUri, { idempotent: true });
               },
             },
-          ]
+          ],
         );
       } else {
         const id = generateId();
@@ -136,13 +152,13 @@ export default function ScanScreen() {
           [
             {
               text: "✏️ Desenează",
-              onPress: () => router.push({ pathname: '/[id]', params: { id } }),
+              onPress: () => router.push({ pathname: "/[id]", params: { id } }),
             },
             {
               text: "📋 Mergi la Feed",
-              onPress: () => router.push('/feed'),
+              onPress: () => router.push("/feed"),
             },
-          ]
+          ],
         );
       }
     } catch (err: any) {
@@ -155,7 +171,11 @@ export default function ScanScreen() {
   }, [processing, router]);
 
   if (!permission) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#007AFF" /></View>;
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
   }
 
   if (!permission.granted) {
@@ -174,7 +194,6 @@ export default function ScanScreen() {
   return (
     <View style={styles.container}>
       <CameraView ref={cameraRef} style={styles.camera} facing={facing}>
-
         <View style={styles.overlay}>
           <Text style={styles.topLabel}>SCAN_TARGET</Text>
           <View style={styles.scanFrame}>
@@ -200,13 +219,13 @@ export default function ScanScreen() {
             onPress={handleCapture}
             disabled={processing}
           >
-            {processing
-              ? <ActivityIndicator color="#007AFF" size="small" />
-              : <View style={styles.captureInner} />
-            }
+            {processing ? (
+              <ActivityIndicator color="#007AFF" size="small" />
+            ) : (
+              <View style={styles.captureInner} />
+            )}
           </TouchableOpacity>
         </View>
-
       </CameraView>
     </View>
   );
@@ -219,64 +238,112 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
   camera: { flex: 1 },
   center: {
-    flex: 1, alignItems: "center", justifyContent: "center",
-    padding: 24, backgroundColor: "#0f0f0f",
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: "#0f0f0f",
   },
   permText: {
-    color: "#ccc", textAlign: "center",
-    marginBottom: 16, fontSize: 15,
+    color: "#ccc",
+    textAlign: "center",
+    marginBottom: 16,
+    fontSize: 15,
   },
   permBtn: {
     backgroundColor: "#007AFF",
-    paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
   },
   permBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   overlay: { flex: 1, alignItems: "center", justifyContent: "center" },
   topLabel: {
-    color: "#007AFF", fontSize: 11,
-    letterSpacing: 3, marginBottom: 16, fontWeight: "700",
+    color: "#007AFF",
+    fontSize: 11,
+    letterSpacing: 3,
+    marginBottom: 16,
+    fontWeight: "700",
   },
   scanFrame: {
-    width: 260, height: 340,
+    width: 260,
+    height: 340,
     position: "relative",
-    alignItems: "center", justifyContent: "center",
+    alignItems: "center",
+    justifyContent: "center",
   },
   hint: {
     color: "rgba(255,255,255,0.6)",
-    marginTop: 16, fontSize: 12,
-    textAlign: "center", paddingHorizontal: 32, letterSpacing: 0.5,
+    marginTop: 16,
+    fontSize: 12,
+    textAlign: "center",
+    paddingHorizontal: 32,
+    letterSpacing: 0.5,
   },
   corner: {
     position: "absolute",
-    width: CORNER_SIZE, height: CORNER_SIZE,
+    width: CORNER_SIZE,
+    height: CORNER_SIZE,
     borderColor: "#007AFF",
   },
-  topLeft: { top: 0, left: 0, borderTopWidth: CORNER_THICKNESS, borderLeftWidth: CORNER_THICKNESS },
-  topRight: { top: 0, right: 0, borderTopWidth: CORNER_THICKNESS, borderRightWidth: CORNER_THICKNESS },
-  bottomLeft: { bottom: 0, left: 0, borderBottomWidth: CORNER_THICKNESS, borderLeftWidth: CORNER_THICKNESS },
-  bottomRight: { bottom: 0, right: 0, borderBottomWidth: CORNER_THICKNESS, borderRightWidth: CORNER_THICKNESS },
+  topLeft: {
+    top: 0,
+    left: 0,
+    borderTopWidth: CORNER_THICKNESS,
+    borderLeftWidth: CORNER_THICKNESS,
+  },
+  topRight: {
+    top: 0,
+    right: 0,
+    borderTopWidth: CORNER_THICKNESS,
+    borderRightWidth: CORNER_THICKNESS,
+  },
+  bottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: CORNER_THICKNESS,
+    borderLeftWidth: CORNER_THICKNESS,
+  },
+  bottomRight: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: CORNER_THICKNESS,
+    borderRightWidth: CORNER_THICKNESS,
+  },
   processingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.65)",
-    alignItems: "center", justifyContent: "center", gap: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
   },
   processingText: {
-    color: "#007AFF", fontSize: 13,
-    fontWeight: "600", letterSpacing: 1,
+    color: "#007AFF",
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: 1,
   },
   controls: {
-    position: "absolute", bottom: 50,
-    width: "100%", alignItems: "center",
+    position: "absolute",
+    bottom: 50,
+    width: "100%",
+    alignItems: "center",
   },
   captureBtn: {
-    width: 76, height: 76, borderRadius: 38,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: "rgba(0,122,255,0.15)",
-    borderWidth: 3, borderColor: "#007AFF",
-    alignItems: "center", justifyContent: "center",
+    borderWidth: 3,
+    borderColor: "#007AFF",
+    alignItems: "center",
+    justifyContent: "center",
   },
   captureBtnDisabled: { opacity: 0.4 },
   captureInner: {
-    width: 56, height: 56,
-    borderRadius: 28, backgroundColor: "#007AFF",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#007AFF",
   },
 });

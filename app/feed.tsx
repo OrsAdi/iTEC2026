@@ -1,6 +1,6 @@
-import { BlurView } from 'expo-blur';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { BlurView } from "expo-blur";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -12,12 +12,17 @@ import {
     Text,
     TouchableOpacity,
     View,
-} from 'react-native';
-import Svg, { Path } from 'react-native-svg';
-import BottomNav from './components/BottomNav';
-import { deletePoster, DrawPath, getAllPosters, PosterEntry } from './lib/storage';
+} from "react-native";
+import Svg, { Path } from "react-native-svg";
+import BottomNav from "./components/BottomNav"; // Corect (caută în folderul app/components)
+import {
+    deletePoster,
+    DrawPath,
+    getAllPosters,
+    PosterEntry,
+} from "./lib/storage"; // Corect
 
-const { width: SCREEN_W } = Dimensions.get('window');
+const { width: SCREEN_W } = Dimensions.get("window");
 const CARD_GAP = 12;
 const CARD_W = (SCREEN_W - CARD_GAP * 3) / 2;
 const CARD_H = CARD_W * 1.3;

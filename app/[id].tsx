@@ -2,28 +2,49 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from "react-native-gesture-handler";
 import Svg, { Path } from "react-native-svg";
 
 import type { PosterEntry } from "./lib/storage";
-import { deletePoster, DrawPath, getPoster, updateDrawing } from "./lib/storage";
+import {
+  deletePoster,
+  DrawPath,
+  getPoster,
+  updateDrawing,
+} from "./lib/storage";
 
-const COLORS = ["#EF4444","#F97316","#EAB308","#22C55E","#3B82F6","#8B5CF6","#EC4899","#FFFFFF","#000000"];
+const COLORS = [
+  "#EF4444",
+  "#F97316",
+  "#EAB308",
+  "#22C55E",
+  "#3B82F6",
+  "#8B5CF6",
+  "#EC4899",
+  "#FFFFFF",
+  "#000000",
+];
 const STROKE_WIDTHS = [2, 4, 8, 14];
 
 function pathsToD(points: { x: number; y: number }[]): string {
   if (points.length === 0) return "";
   const [first, ...rest] = points;
-  return `M ${first.x} ${first.y} ` + rest.map((p) => `L ${p.x} ${p.y}`).join(" ");
+  return (
+    `M ${first.x} ${first.y} ` + rest.map((p) => `L ${p.x} ${p.y}`).join(" ")
+  );
 }
 
 export default function DrawScreen() {
@@ -42,15 +63,23 @@ export default function DrawScreen() {
   const activeColorRef = useRef(activeColor);
   const activeWidthRef = useRef(activeWidth);
 
-  useEffect(() => { activeColorRef.current = activeColor; }, [activeColor]);
-  useEffect(() => { activeWidthRef.current = activeWidth; }, [activeWidth]);
+  useEffect(() => {
+    activeColorRef.current = activeColor;
+  }, [activeColor]);
+  useEffect(() => {
+    activeWidthRef.current = activeWidth;
+  }, [activeWidth]);
 
   useEffect(() => {
     if (!id) return;
     getPoster(id).then((entry) => {
       if (entry) {
         setPoster(entry);
-        try { setPaths(JSON.parse(entry.drawingData)); } catch { setPaths([]); }
+        try {
+          setPaths(JSON.parse(entry.drawingData));
+        } catch {
+          setPaths([]);
+        }
       }
       setLoading(false);
     });
@@ -81,7 +110,10 @@ export default function DrawScreen() {
       setLivePoints([]);
     });
 
-  const handleUndo = useCallback(() => setPaths((prev) => prev.slice(0, -1)), []);
+  const handleUndo = useCallback(
+    () => setPaths((prev) => prev.slice(0, -1)),
+    [],
+  );
 
   const handleClear = useCallback(() => {
     Alert.alert("Șterge adnotările?", "Vrei să elimini toate desenele?", [
@@ -102,10 +134,10 @@ export default function DrawScreen() {
           onPress: async () => {
             if (!id) return;
             await deletePoster(id);
-            router.replace('/feed');
+            router.replace("/feed");
           },
         },
-      ]
+      ],
     );
   }, [id, poster, router]);
 
@@ -124,23 +156,37 @@ export default function DrawScreen() {
     }
   }, [id, paths, router]);
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#007AFF" /></View>;
-  if (!poster) return <View style={styles.center}><Text style={{ color: "#fff" }}>Afișul nu a fost găsit.</Text></View>;
+  if (loading)
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  if (!poster)
+    return (
+      <View style={styles.center}>
+        <Text style={{ color: "#fff" }}>Afișul nu a fost găsit.</Text>
+      </View>
+    );
 
   return (
     <GestureHandlerRootView style={styles.root}>
       <View style={styles.root}>
-
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+          >
             <Text style={styles.backBtnText}>← Înapoi</Text>
           </TouchableOpacity>
 
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle} numberOfLines={1}>{poster.title}</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {poster.title}
+            </Text>
             <Text style={styles.headerDate}>
-              {new Date(poster.createdAt).toLocaleDateString('ro-RO')}
+              {new Date(poster.createdAt).toLocaleDateString("ro-RO")}
             </Text>
           </View>
 
@@ -153,10 +199,11 @@ export default function DrawScreen() {
               onPress={handleSave}
               disabled={saving}
             >
-              {saving
-                ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={styles.saveBtnText}>Salvează</Text>
-              }
+              {saving ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.saveBtnText}>Salvează</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -164,7 +211,11 @@ export default function DrawScreen() {
         {/* Canvas */}
         <GestureDetector gesture={panGesture}>
           <View style={styles.canvasContainer}>
-            <Image source={{ uri: poster.imageUri }} style={styles.posterImage} resizeMode="contain" />
+            <Image
+              source={{ uri: poster.imageUri }}
+              style={styles.posterImage}
+              resizeMode="contain"
+            />
             <Svg style={StyleSheet.absoluteFill}>
               {paths.map((path, idx) => (
                 <Path
@@ -215,26 +266,33 @@ export default function DrawScreen() {
             {STROKE_WIDTHS.map((w) => (
               <TouchableOpacity
                 key={w}
-                style={[styles.strokeBtn, activeWidth === w && styles.strokeBtnActive]}
+                style={[
+                  styles.strokeBtn,
+                  activeWidth === w && styles.strokeBtnActive,
+                ]}
                 onPress={() => setActiveWidth(w)}
               >
-                <View style={{
-                  width: w * 1.8,
-                  height: w * 1.8,
-                  borderRadius: w,
-                  backgroundColor: activeColor,
-                }} />
+                <View
+                  style={{
+                    width: w * 1.8,
+                    height: w * 1.8,
+                    borderRadius: w,
+                    backgroundColor: activeColor,
+                  }}
+                />
               </TouchableOpacity>
             ))}
             <TouchableOpacity style={styles.actionBtn} onPress={handleUndo}>
               <Text style={styles.actionBtnText}>↩</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: "#7f1d1d" }]} onPress={handleClear}>
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: "#7f1d1d" }]}
+              onPress={handleClear}
+            >
               <Text style={styles.actionBtnText}>🗑</Text>
             </TouchableOpacity>
           </View>
         </View>
-
       </View>
     </GestureHandlerRootView>
   );
@@ -242,7 +300,12 @@ export default function DrawScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#0f0f0f" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0f0f0f" },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0f0f0f",
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -290,19 +353,40 @@ const styles = StyleSheet.create({
   },
   colorRow: { maxHeight: 44 },
   colorRowContent: { paddingHorizontal: 12, gap: 8, alignItems: "center" },
-  colorSwatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: "transparent" },
+  colorSwatch: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
   colorSwatchActive: { borderColor: "#fff", transform: [{ scale: 1.2 }] },
-  strokeRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingTop: 10, gap: 8 },
+  strokeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    gap: 8,
+  },
   strokeBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "#2a2a2a", alignItems: "center", justifyContent: "center",
-    borderWidth: 2, borderColor: "transparent",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#2a2a2a",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
   },
   strokeBtnActive: { borderColor: "#007AFF" },
   actionBtn: {
-    marginLeft: "auto", backgroundColor: "#374151",
-    width: 36, height: 36, borderRadius: 8,
-    alignItems: "center", justifyContent: "center",
+    marginLeft: "auto",
+    backgroundColor: "#374151",
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
   actionBtnText: { fontSize: 18 },
 });
