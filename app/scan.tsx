@@ -1,11 +1,12 @@
-import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import { BlurView } from "expo-blur";
+import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImageManipulator from "expo-image-manipulator";
 import { useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert,
+  ActivityIndicator,
+  Alert,
   Dimensions,
   Modal,
   StyleSheet,
@@ -14,8 +15,13 @@ import {
   View,
 } from "react-native";
 
-import { computeHash, posterSimilarity } from "./lib/phash";
-import { deletePoster, generateId, getAllPosters, savePoster } from "./lib/storage";
+import { computeHash, isSamePosterAsync } from "./lib/phash";
+import {
+  deletePoster,
+  generateId,
+  getAllPosters,
+  savePoster,
+} from "./lib/storage";
 
 const FRAME_W = 260;
 const FRAME_H = 340;
@@ -121,7 +127,7 @@ export default function ScanScreen() {
       if (!photo?.uri) throw new Error("Nu s-a putut captura fotografia.");
 
       // Cropăm la dimensiunea chenarului
-      const screen = Dimensions.get('window');
+      const screen = Dimensions.get("window");
       const screenW = screen.width;
       const screenH = screen.height;
 
@@ -139,8 +145,17 @@ export default function ScanScreen() {
       setProcessingText("Procesez imaginea...");
       const cropped = await ImageManipulator.manipulateAsync(
         photo.uri,
-        [{ crop: { originX: cropX, originY: cropY, width: cropW, height: cropH } }],
-        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+        [
+          {
+            crop: {
+              originX: cropX,
+              originY: cropY,
+              width: cropW,
+              height: cropH,
+            },
+          },
+        ],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
       );
 
       // Salvează imaginea cropată
@@ -226,7 +241,6 @@ export default function ScanScreen() {
   return (
     <View style={styles.container}>
       <CameraView ref={cameraRef} style={styles.camera} facing={facing}>
-
         {/* Overlay întunecat în afara chenarului */}
         <View style={styles.overlayTop} />
         <View style={styles.overlayMiddle}>
@@ -268,7 +282,11 @@ export default function ScanScreen() {
         </View>
       </CameraView>
 
-      <Modal visible={duplicateModal.visible} animationType="fade" transparent={true}>
+      <Modal
+        visible={duplicateModal.visible}
+        animationType="fade"
+        transparent={true}
+      >
         <View style={styles.modalOverlay}>
           <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
             <View style={styles.alertHeaderBox}>
@@ -285,20 +303,33 @@ export default function ScanScreen() {
               Am găsit "{duplicateModal.posterTitle}". Ce vrei să faci?
             </Text>
 
-            <TouchableOpacity style={styles.alertButton} onPress={handleDuplicateEdit}>
+            <TouchableOpacity
+              style={styles.alertButton}
+              onPress={handleDuplicateEdit}
+            >
               <Text style={styles.alertButtonText}>✏️ EDITEAZĂ</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.alertDeleteButton} onPress={handleDuplicateDelete}>
+            <TouchableOpacity
+              style={styles.alertDeleteButton}
+              onPress={handleDuplicateDelete}
+            >
               <Text style={styles.alertButtonText}>🗑️ ȘTERGE</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.alertCancelButton} onPress={handleDuplicateCancel}>
+            <TouchableOpacity
+              style={styles.alertCancelButton}
+              onPress={handleDuplicateCancel}
+            >
               <Text style={styles.alertCancelText}>ANULEAZĂ</Text>
             </TouchableOpacity>
           </BlurView>
         </View>
       </Modal>
 
-      <Modal visible={newPosterModal.visible} animationType="fade" transparent={true}>
+      <Modal
+        visible={newPosterModal.visible}
+        animationType="fade"
+        transparent={true}
+      >
         <View style={styles.modalOverlay}>
           <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
             <View style={styles.alertHeaderBox}>
@@ -315,13 +346,22 @@ export default function ScanScreen() {
               "{newPosterModal.posterTitle}" a fost adăugat în feed.
             </Text>
 
-            <TouchableOpacity style={styles.alertButton} onPress={handleNewPosterAnnotate}>
+            <TouchableOpacity
+              style={styles.alertButton}
+              onPress={handleNewPosterAnnotate}
+            >
               <Text style={styles.alertButtonText}>✏️ ADNOTEAZĂ</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.alertNeutralButton} onPress={handleNewPosterFeed}>
+            <TouchableOpacity
+              style={styles.alertNeutralButton}
+              onPress={handleNewPosterFeed}
+            >
               <Text style={styles.alertButtonText}>📋 FEED</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.alertCancelButton} onPress={handleNewPosterScanAnother}>
+            <TouchableOpacity
+              style={styles.alertCancelButton}
+              onPress={handleNewPosterScanAnother}
+            >
               <Text style={styles.alertCancelText}>📷 SCANEAZĂ ALT AFIȘ</Text>
             </TouchableOpacity>
           </BlurView>
@@ -345,8 +385,18 @@ const styles = StyleSheet.create({
     padding: 24,
     backgroundColor: "#0f0f0f",
   },
-  permText: { color: "#ccc", textAlign: "center", marginBottom: 16, fontSize: 15 },
-  permBtn: { backgroundColor: "#007AFF", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
+  permText: {
+    color: "#ccc",
+    textAlign: "center",
+    marginBottom: 16,
+    fontSize: 15,
+  },
+  permBtn: {
+    backgroundColor: "#007AFF",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
   permBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
 
   // Overlay în afara chenarului
@@ -382,14 +432,18 @@ const styles = StyleSheet.create({
   },
 
   topLabel: {
-    color: "#007AFF", fontSize: 11,
-    letterSpacing: 3, fontWeight: "700",
+    color: "#007AFF",
+    fontSize: 11,
+    letterSpacing: 3,
+    fontWeight: "700",
     marginBottom: 8,
   },
   hint: {
     color: "rgba(255,255,255,0.6)",
-    fontSize: 12, textAlign: "center",
-    paddingHorizontal: 32, letterSpacing: 0.5,
+    fontSize: 12,
+    textAlign: "center",
+    paddingHorizontal: 32,
+    letterSpacing: 0.5,
   },
 
   // Colțuri chenar
@@ -399,10 +453,30 @@ const styles = StyleSheet.create({
     height: CORNER_SIZE,
     borderColor: "#007AFF",
   },
-  topLeft: { top: 0, left: 0, borderTopWidth: CORNER_THICKNESS, borderLeftWidth: CORNER_THICKNESS },
-  topRight: { top: 0, right: 0, borderTopWidth: CORNER_THICKNESS, borderRightWidth: CORNER_THICKNESS },
-  bottomLeft: { bottom: 0, left: 0, borderBottomWidth: CORNER_THICKNESS, borderLeftWidth: CORNER_THICKNESS },
-  bottomRight: { bottom: 0, right: 0, borderBottomWidth: CORNER_THICKNESS, borderRightWidth: CORNER_THICKNESS },
+  topLeft: {
+    top: 0,
+    left: 0,
+    borderTopWidth: CORNER_THICKNESS,
+    borderLeftWidth: CORNER_THICKNESS,
+  },
+  topRight: {
+    top: 0,
+    right: 0,
+    borderTopWidth: CORNER_THICKNESS,
+    borderRightWidth: CORNER_THICKNESS,
+  },
+  bottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: CORNER_THICKNESS,
+    borderLeftWidth: CORNER_THICKNESS,
+  },
+  bottomRight: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: CORNER_THICKNESS,
+    borderRightWidth: CORNER_THICKNESS,
+  },
 
   processingOverlay: {
     ...StyleSheet.absoluteFillObject,
