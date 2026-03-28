@@ -28,16 +28,16 @@ export default function AuthScreen() {
   const opacityAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Animație infinită de tip "glitch/pulse"
+    // Animație infinită, mai calmă pentru utilizare confortabilă pe mobil
     Animated.loop(
       Animated.parallel([
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.15, duration: 300, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1.06, duration: 1100, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 1100, useNativeDriver: true }),
         ]),
         Animated.sequence([
-          Animated.timing(opacityAnim, { toValue: 0.7, duration: 150, useNativeDriver: true }),
-          Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+          Animated.timing(opacityAnim, { toValue: 0.86, duration: 1100, useNativeDriver: true }),
+          Animated.timing(opacityAnim, { toValue: 1, duration: 1100, useNativeDriver: true }),
         ]),
       ])
     ).start();
@@ -67,17 +67,14 @@ export default function AuthScreen() {
             <View style={styles.glassWrapper}>
               <BlurView intensity={90} tint="dark" style={styles.blurContainer}>
 
-                {/* 3. APLICĂM ANIMAȚIA DE PULS ȘI OPACITATE PE LOGO */}
-                <Animated.View style={[
-                  styles.logoContainer,
-                  {
-                    transform: [{ scale: pulseAnim }],
-                    opacity: opacityAnim // Adăugăm și pâlpâitul
-                  }
-                ]}>
-
+                <View style={styles.contentContainer}>
                   {/* Logo Animat GLITCH_TAG */}
-                  <Animated.View style={[styles.logoContainer, { transform: [{ scale: pulseAnim }], opacity: opacityAnim }]}>
+                  <Animated.View
+                    style={[
+                      styles.logoContainer,
+                      { transform: [{ scale: pulseAnim }], opacity: opacityAnim }
+                    ]}
+                  >
                     <View style={styles.logoBox}>
                       <Text style={styles.logoTextMain}>GLITCH_</Text>
                       <Text style={styles.logoTextSub}>TAG</Text>
@@ -123,8 +120,7 @@ export default function AuthScreen() {
                     </TouchableOpacity>
                     <Text style={styles.credits}>VER. 1.0.26 | iTEC OVERRIDE</Text>
                   </View>
-
-                </Animated.View>
+                </View>
 
               </BlurView>
             </View>
@@ -152,6 +148,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
+  contentContainer: {
+    width: '100%',
+    maxWidth: 460,
+  },
   logoContainer: { marginBottom: 30 },
   logoBox: {
     flexDirection: 'row',
@@ -174,14 +174,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 15,
     paddingHorizontal: 15,
-    height: 60,
+    minHeight: 64,
+    width: '100%',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  input: { flex: 1, color: '#fff', fontSize: 16, marginLeft: 10 },
+  input: { flex: 1, color: '#fff', fontSize: 17, marginLeft: 12, paddingVertical: 14 },
   loginButton: {
     backgroundColor: '#007AFF',
-    height: 60,
+    minHeight: 64,
+    width: '100%',
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',

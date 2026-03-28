@@ -3,12 +3,12 @@ import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    Alert, Animated,
-    ImageBackground,
-    KeyboardAvoidingView, Platform, ScrollView,
-    StyleSheet, Text,
-    TextInput, TouchableOpacity,
-    View
+  Alert, Animated,
+  ImageBackground,
+  KeyboardAvoidingView, Platform, ScrollView,
+  StyleSheet, Text,
+  TextInput, TouchableOpacity,
+  View
 } from 'react-native';
 
 export default function SignUpScreen() {
@@ -28,24 +28,24 @@ export default function SignUpScreen() {
         Animated.sequence([
           Animated.timing(pulseAnim, {
             toValue: 1.15, // Mărim efectul
-            duration: 300, // Mai rapid
+            duration: 2000, // Mai rapid
             useNativeDriver: true,
           }),
           Animated.timing(pulseAnim, {
             toValue: 1,
-            duration: 300,
+            duration: 2000,
             useNativeDriver: true,
           }),
         ]),
         Animated.sequence([
           Animated.timing(opacityAnim, {
             toValue: 0.7,
-            duration: 150,
+            duration: 2000,
             useNativeDriver: true,
           }),
           Animated.timing(opacityAnim, {
             toValue: 1,
-            duration: 150,
+            duration: 2000,
             useNativeDriver: true,
           }),
         ]),
@@ -56,7 +56,7 @@ export default function SignUpScreen() {
   const handleSignUp = () => {
     if (name && email.includes('@') && password.length >= 6) {
       Alert.alert("SUCCESS", "Account created! Now login.");
-      router.replace('/'); 
+      router.replace('/');
     } else {
       Alert.alert("ERROR", "Please fill all fields correctly.");
     }
@@ -64,22 +64,22 @@ export default function SignUpScreen() {
 
   return (
     <View style={styles.container}>
-      <ImageBackground 
-        source={{ uri: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1000' }} 
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1000' }}
         style={styles.background}
       >
         <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <ScrollView contentContainerStyle={styles.scrollContainer}>
             <View style={styles.glassWrapper}>
               <BlurView intensity={90} tint="dark" style={styles.blurContainer}>
-                
+
                 {/* 3. APLICĂM ANIMAȚIA AGRESIVĂ PE LOGO ȘI AICI */}
                 <Animated.View style={[
-                  styles.logoContainer, 
-                  { 
-                    transform: [{ scale: pulseAnim }], 
-                    opacity: opacityAnim 
-                  } 
+                  styles.logoContainer,
+                  {
+                    transform: [{ scale: pulseAnim }],
+                    opacity: opacityAnim
+                  }
                 ]}>
                   <View style={styles.logoBox}>
                     <Text style={styles.logoTextMain}>GLITCH_</Text>
