@@ -8,7 +8,7 @@ export async function computeHash(imageUri: string): Promise<string> {
     [{ resize: { width: 16, height: 16 } }],
     { compress: 0, format: ImageManipulator.SaveFormat.JPEG, base64: true }
   );
-  
+
   return tiny.base64!;
 }
 
@@ -19,42 +19,57 @@ export async function isSamePosterAsync(
   return isSamePoster(hashA, hashB);
 }
 
-export function isSamePoster(hashA: string, hashB: string): boolean {
-  if (!hashA || !hashB) return false;
-
-  // La compress: 0 și 16x16, JPEG produce fișiere de ~200-400 bytes
-  // Structura DCT e determinată de conținutul imaginii
-  // Același afiș → bytes similari în aceleași poziții
+export function posterSimilarity(hashA: string, hashB: string): number {
+  if (!hashA || !hashB) return 0;
 
   const lenA = hashA.length;
   const lenB = hashB.length;
+  const maxLen = Math.max(lenA, lenB);
+  const minLen = Math.min(lenA, lenB);
+  if (maxLen === 0) return 0;
 
-  // Diferență de lungime > 25% = imagini diferite
-  const lenDiff = Math.abs(lenA - lenB) / Math.max(lenA, lenB);
-  if (lenDiff > 0.25) return false;
+  // Diferența mare de lungime indică imagini diferite.
+  const lenPenalty = 1 - Math.abs(lenA - lenB) / maxLen;
+  if (lenPenalty < 0.88) return 0;
 
-  // Compară 10 segmente uniforme
-  const segCount = 10;
-  const segSize = 20;
-  let totalSim = 0;
+  // Header-ul JPEG în base64 este foarte asemănător între imagini;
+  // ignorăm începutul ca să comparăm partea utilă.
+  const startA = Math.min(Math.floor(lenA * 0.28), lenA - 1);
+  const startB = Math.min(Math.floor(lenB * 0.28), lenB - 1);
+  const endA = Math.max(startA + 1, Math.floor(lenA * 0.95));
+  const endB = Math.max(startB + 1, Math.floor(lenB * 0.95));
+
+  const payloadA = hashA.substring(startA, endA);
+  const payloadB = hashB.substring(startB, endB);
+  const payloadLen = Math.min(payloadA.length, payloadB.length);
+  if (payloadLen < 80) return 0;
+
+  const segCount = 14;
+  const segSize = Math.max(12, Math.floor(payloadLen / 24));
+  let total = 0;
 
   for (let s = 0; s < segCount; s++) {
-    const posA = Math.floor((s / segCount) * (lenA - segSize));
-    const posB = Math.floor((s / segCount) * (lenB - segSize));
-    
-    const segA = hashA.substring(Math.max(0, posA), posA + segSize);
-    const segB = hashB.substring(Math.max(0, posB), posB + segSize);
-    
-    let matches = 0;
+    const posA = Math.floor((s / segCount) * Math.max(1, payloadA.length - segSize));
+    const posB = Math.floor((s / segCount) * Math.max(1, payloadB.length - segSize));
+    const segA = payloadA.substring(posA, posA + segSize);
+    const segB = payloadB.substring(posB, posB + segSize);
+
     const len = Math.min(segA.length, segB.length);
+    if (len === 0) continue;
+
+    let matches = 0;
     for (let i = 0; i < len; i++) {
       if (segA[i] === segB[i]) matches++;
     }
-    totalSim += len > 0 ? matches / len : 0;
+    total += matches / len;
   }
 
-  const avgSim = totalSim / segCount;
-  return avgSim > 0.82; // 82% similaritate
+  const avgPayloadSimilarity = total / segCount;
+  return avgPayloadSimilarity * lenPenalty;
+}
+
+export function isSamePoster(hashA: string, hashB: string): boolean {
+  return posterSimilarity(hashA, hashB) >= 0.9;
 }
 
 export function hammingDistance(hashA: string, hashB: string): number {

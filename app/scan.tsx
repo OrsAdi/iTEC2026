@@ -14,7 +14,7 @@ import {
   View,
 } from "react-native";
 
-import { computeHash, isSamePosterAsync } from "./lib/phash";
+import { computeHash, posterSimilarity } from "./lib/phash";
 import { deletePoster, generateId, getAllPosters, savePoster } from "./lib/storage";
 
 const FRAME_W = 260;
@@ -154,17 +154,21 @@ export default function ScanScreen() {
 
       setProcessingText("Recunosc afișul...");
       const allPosters = await getAllPosters();
-      let duplicate = null;
+      let duplicate: (typeof allPosters)[number] | null = null;
+      let bestScore = 0;
 
       for (const poster of allPosters) {
-        const same = await isSamePosterAsync(poster.hash, hash);
-        if (same) {
+        const score = posterSimilarity(poster.hash, hash);
+        if (score > bestScore) {
+          bestScore = score;
           duplicate = poster;
-          break;
         }
       }
 
-      if (duplicate) {
+      // Acceptăm duplicate doar la o similaritate foarte ridicată.
+      const isDuplicate = duplicate !== null && bestScore >= 0.9;
+
+      if (isDuplicate && duplicate) {
         setDuplicateModal({
           visible: true,
           posterId: duplicate.id,

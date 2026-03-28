@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { posterSimilarity } from "./phash";
 
 export interface PosterEntry {
   id: string;
@@ -66,30 +67,9 @@ export async function deletePoster(id: string): Promise<void> {
 
 export async function findDuplicate(hash: string): Promise<PosterEntry | null> {
   const all = await getAllPosters();
-  return all.find((p) => isSamePoster(p.hash, hash)) ?? null;
+  return all.find((p) => posterSimilarity(p.hash, hash) >= 0.9) ?? null;
 }
 
 export function generateId(): string {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function isSamePoster(hashA: string, hashB: string): boolean {
-  if (!hashA || !hashB) return false;
-  const lenDiff = Math.abs(hashA.length - hashB.length);
-  const avgLen = (hashA.length + hashB.length) / 2;
-  if (lenDiff / avgLen > 0.20) return false;
-  const segSize = 50;
-  let totalMatches = 0;
-  let totalChars = 0;
-  for (let seg = 0; seg < 5; seg++) {
-    const posA = Math.floor((seg / 5) * (hashA.length - segSize));
-    const posB = Math.floor((seg / 5) * (hashB.length - segSize));
-    const segA = hashA.substring(posA, posA + segSize);
-    const segB = hashB.substring(posB, posB + segSize);
-    for (let i = 0; i < segSize; i++) {
-      if (segA[i] === segB[i]) totalMatches++;
-      totalChars++;
-    }
-  }
-  return totalMatches / totalChars > 0.60;
 }
