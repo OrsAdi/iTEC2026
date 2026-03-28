@@ -1,6 +1,15 @@
-import React from "react";
-import ProfileScreen from "../src/screens/Profile/ProfileScreen";
+import { Text, View } from "react-native";
 
-export default function ProfilePage() {
-  return <ProfileScreen />;
+export default function Index() {
+  return (
+    <View
+      style={{
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <Text>Edit app/index.tsx to edit this screen.</Text>
+    </View>
+  );
 }
