@@ -8,9 +8,11 @@ import {
   Alert,
   Image,
   Modal,
+  PanResponder,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -36,6 +38,25 @@ const COLORS = [
   "#3B82F6", "#8B5CF6", "#EC4899", "#FFFFFF", "#000000",
 ];
 const STROKE_WIDTHS = [2, 4, 8, 14];
+const GIF_OPTIONS = [
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExY2xqN2I0c2F2dWN4eXV6dDZ0aWh6bWI1Y2x4dnF0a2YwdW9qdjNnMSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/ICOgUNjpvO0PC/giphy.gif",
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeHVmNnM2MzVibnNmbWwwNDUydDV4N2FwNTA2N2RoMjlpczhqN2d0dSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/l0HlNaQ6gWfllcjDO/giphy.gif",
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExN2xwbHRiYjI1ZW5tOHVhZm5uN2MyZ2Q3c2l4NWIzMmVhM2NncTBpYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/3oEjI6SIIHBdRxXI40/giphy.gif",
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcnN3d2FscDd5d3J2M3RlcWl6a2s0djNyb2xud3NrdXN5ejF5MjVwNyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/fxsqOYnIMEefC/giphy.gif",
+];
+
+type GifSticker = {
+  id: string;
+  uri: string;
+  x: number; // 0..1 normalized on canvas width
+  y: number; // 0..1 normalized on canvas height
+  size: number; // relative to canvas width
+};
+
+type AnnotationPayload = {
+  paths: DrawPath[];
+  stickers: GifSticker[];
+};
 
 function pathsToD(points: { x: number; y: number }[]): string {
   if (points.length === 0) return "";
@@ -51,6 +72,32 @@ function parseDrawPaths(raw: unknown): DrawPath[] {
     return Array.isArray(parsed) ? (parsed as DrawPath[]) : [];
   } catch {
     return [];
+  }
+}
+
+function parseAnnotationPayload(raw: unknown): AnnotationPayload {
+  const empty: AnnotationPayload = { paths: [], stickers: [] };
+
+  if (Array.isArray(raw)) return { paths: raw as DrawPath[], stickers: [] };
+  if (typeof raw !== "string") return empty;
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return { paths: parsed as DrawPath[], stickers: [] };
+
+    if (parsed && typeof parsed === "object") {
+      const paths = Array.isArray((parsed as any).paths)
+        ? ((parsed as any).paths as DrawPath[])
+        : [];
+      const stickers = Array.isArray((parsed as any).stickers)
+        ? ((parsed as any).stickers as GifSticker[])
+        : [];
+      return { paths, stickers };
+    }
+
+    return empty;
+  } catch {
+    return empty;
   }
 }
 
@@ -111,7 +158,13 @@ export default function DrawScreen() {
   const [saveSuccessVisible, setSaveSuccessVisible] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [clearConfirmVisible, setClearConfirmVisible] = useState(false);
+  const [gifPickerVisible, setGifPickerVisible] = useState(false);
+  const [gifUrlInput, setGifUrlInput] = useState("");
+  const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
+  const [isStickerMode, setIsStickerMode] = useState(false);
+  const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
   const [paths, setPaths] = useState<DrawPath[]>([]);
+  const [stickers, setStickers] = useState<GifSticker[]>([]);
   const [livePoints, setLivePoints] = useState<{ x: number; y: number }[]>([]);
   const [activeColor, setActiveColor] = useState(COLORS[0]);
   const [activeWidth, setActiveWidth] = useState(STROKE_WIDTHS[1]);
@@ -119,6 +172,7 @@ export default function DrawScreen() {
   const activeColorRef = useRef(activeColor);
   const activeWidthRef = useRef(activeWidth);
   const viewShotRef = useRef<ViewShot>(null);
+  const dragStartRef = useRef<{ id: string; x: number; y: number } | null>(null);
 
   useEffect(() => { activeColorRef.current = activeColor; }, [activeColor]);
   useEffect(() => { activeWidthRef.current = activeWidth; }, [activeWidth]);
@@ -128,7 +182,9 @@ export default function DrawScreen() {
     getPoster(id).then((entry) => {
       if (entry) {
         setPoster(entry);
-        setPaths(parseDrawPaths(entry.drawingData as unknown));
+        const payload = parseAnnotationPayload(entry.drawingData as unknown);
+        setPaths(payload.paths);
+        setStickers(payload.stickers);
       }
       setLoading(false);
     });
@@ -136,6 +192,7 @@ export default function DrawScreen() {
 
   const panGesture = Gesture.Pan()
     .runOnJS(true)
+    .enabled(!isStickerMode)
     .minDistance(0)
     .onStart((e) => {
       currentPoints.current = [{ x: e.x, y: e.y }];
@@ -166,8 +223,71 @@ export default function DrawScreen() {
 
   const handleConfirmClear = useCallback(() => {
     setPaths([]);
+    setStickers([]);
     setClearConfirmVisible(false);
   }, []);
+
+  const addGifSticker = useCallback((uri: string) => {
+    const clean = uri.trim();
+    if (!clean) return;
+    const newSticker: GifSticker = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      uri: clean,
+      x: 0.5,
+      y: 0.5,
+      size: 0.26,
+    };
+    setStickers((prev) => [...prev, newSticker]);
+    setSelectedStickerId(newSticker.id);
+    setIsStickerMode(true);
+    setGifPickerVisible(false);
+    setGifUrlInput("");
+  }, []);
+
+  const updateSticker = useCallback((idToUpdate: string, update: Partial<GifSticker>) => {
+    setStickers((prev) => prev.map((s) => (s.id === idToUpdate ? { ...s, ...update } : s)));
+  }, []);
+
+  const resizeSelectedSticker = useCallback((delta: number) => {
+    if (!selectedStickerId) return;
+    setStickers((prev) =>
+      prev.map((s) =>
+        s.id === selectedStickerId
+          ? { ...s, size: Math.max(0.1, Math.min(0.7, s.size + delta)) }
+          : s
+      )
+    );
+  }, [selectedStickerId]);
+
+  const getStickerPanHandlers = useCallback(
+    (sticker: GifSticker) =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: () => {
+          setSelectedStickerId(sticker.id);
+          setIsStickerMode(true);
+          dragStartRef.current = { id: sticker.id, x: sticker.x, y: sticker.y };
+        },
+        onPanResponderMove: (_evt, gestureState) => {
+          const drag = dragStartRef.current;
+          if (!drag || drag.id !== sticker.id) return;
+          const dxNorm = gestureState.dx / Math.max(1, canvasSize.width);
+          const dyNorm = gestureState.dy / Math.max(1, canvasSize.height);
+          updateSticker(sticker.id, {
+            x: Math.max(0, Math.min(1, drag.x + dxNorm)),
+            y: Math.max(0, Math.min(1, drag.y + dyNorm)),
+          });
+        },
+        onPanResponderRelease: () => {
+          dragStartRef.current = null;
+        },
+        onPanResponderTerminate: () => {
+          dragStartRef.current = null;
+        },
+      }).panHandlers,
+    [canvasSize.height, canvasSize.width, updateSticker]
+  );
 
   const handleDelete = useCallback(() => {
     setDeleteConfirmVisible(true);
@@ -181,6 +301,7 @@ export default function DrawScreen() {
     try {
       const originalImageUri = await resetPosterToOriginal(id);
       setPaths([]);
+      setStickers([]);
       if (originalImageUri) {
         setPoster((prev) => (prev ? {
           ...prev,
@@ -200,7 +321,7 @@ export default function DrawScreen() {
     setSaving(true);
     try {
       // Salvează doar adnotările; imaginea de bază rămâne cea inițială.
-      await updateDrawing(id, JSON.stringify(paths));
+      await updateDrawing(id, JSON.stringify({ paths, stickers }));
 
       setSaveSuccessVisible(true);
     } catch {
@@ -208,7 +329,7 @@ export default function DrawScreen() {
     } finally {
       setSaving(false);
     }
-  }, [id, paths]);
+  }, [id, paths, stickers]);
 
   if (loading) return (
     <View style={styles.center}>
@@ -250,6 +371,12 @@ export default function DrawScreen() {
                 : <Text style={styles.saveBtnText}>Salvează</Text>
               }
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeBtn, isStickerMode && styles.modeBtnActive]}
+              onPress={() => setIsStickerMode((prev) => !prev)}
+            >
+              <Text style={styles.modeBtnText}>{isStickerMode ? "Sticker" : "Draw"}</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -258,6 +385,10 @@ export default function DrawScreen() {
           <ViewShot
             ref={viewShotRef}
             style={styles.canvasContainer}
+            onLayout={(e) => {
+              const { width, height } = e.nativeEvent.layout;
+              setCanvasSize({ width, height });
+            }}
             options={{ format: "jpg", quality: 0.9 }}
           >
             <Image
@@ -265,6 +396,25 @@ export default function DrawScreen() {
               style={styles.posterImage}
               resizeMode="contain"
             />
+            {stickers.map((sticker) => (
+              <View
+                key={sticker.id}
+                style={[
+                  styles.gifSticker,
+                  selectedStickerId === sticker.id && styles.gifStickerSelected,
+                  {
+                    width: `${Math.max(8, Math.min(60, sticker.size * 100))}%`,
+                    height: undefined,
+                    aspectRatio: 1,
+                    left: `${Math.max(0, Math.min(100, sticker.x * 100))}%`,
+                    top: `${Math.max(0, Math.min(100, sticker.y * 100))}%`,
+                  },
+                ]}
+                {...getStickerPanHandlers(sticker)}
+              >
+                <Image source={{ uri: sticker.uri }} style={styles.gifStickerImage} resizeMode="contain" />
+              </View>
+            ))}
             <Svg style={StyleSheet.absoluteFill}>
               {paths.map((path, idx) => (
                 <Path
@@ -333,8 +483,66 @@ export default function DrawScreen() {
             >
               <Text style={styles.actionBtnText}>🗑</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.gifBtn]}
+              onPress={() => setGifPickerVisible(true)}
+            >
+              <Text style={styles.actionBtnText}>GIF</Text>
+            </TouchableOpacity>
+            {selectedStickerId && (
+              <>
+                <TouchableOpacity style={[styles.actionBtn, styles.resizeBtn]} onPress={() => resizeSelectedSticker(-0.03)}>
+                  <Text style={styles.actionBtnText}>-</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.actionBtn, styles.resizeBtn]} onPress={() => resizeSelectedSticker(0.03)}>
+                  <Text style={styles.actionBtnText}>+</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
+
+        <Modal visible={gifPickerVisible} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+            <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
+              <View style={styles.alertHeaderBox}>
+                <Text style={styles.alertHeaderTextMain}>GIF</Text>
+                <Text style={styles.alertHeaderTextSub}> PICKER</Text>
+              </View>
+              <Text style={styles.alertMessage}>Alege un GIF preset sau pune link direct.</Text>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.gifRow}
+                style={styles.gifScroll}
+              >
+                {GIF_OPTIONS.map((gif) => (
+                  <TouchableOpacity key={gif} onPress={() => addGifSticker(gif)} style={styles.gifThumbWrap}>
+                    <Image source={{ uri: gif }} style={styles.gifThumb} resizeMode="cover" />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <TextInput
+                value={gifUrlInput}
+                onChangeText={setGifUrlInput}
+                placeholder="https://...gif"
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                style={styles.gifInput}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              <TouchableOpacity style={styles.alertButton} onPress={() => addGifSticker(gifUrlInput)}>
+                <Text style={styles.alertButtonText}>ADD GIF</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.alertCancelButton} onPress={() => setGifPickerVisible(false)}>
+                <Text style={styles.alertCancelText}>CANCEL</Text>
+              </TouchableOpacity>
+            </BlurView>
+          </View>
+        </Modal>
 
         <Modal visible={saveSuccessVisible} animationType="fade" transparent>
           <View style={styles.modalOverlay}>
@@ -441,6 +649,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#007AFF", paddingHorizontal: 14,
     paddingVertical: 7, borderRadius: 8, minWidth: 80, alignItems: "center",
   },
+  modeBtn: {
+    backgroundColor: "#334155", paddingHorizontal: 10,
+    paddingVertical: 7, borderRadius: 8,
+  },
+  modeBtnActive: { backgroundColor: "#0ea5e9" },
+  modeBtnText: { color: "#fff", fontWeight: "700", fontSize: 11 },
   saveBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   canvasContainer: { flex: 1, backgroundColor: "#000" },
   posterImage: { ...StyleSheet.absoluteFillObject },
@@ -462,7 +676,25 @@ const styles = StyleSheet.create({
     marginLeft: "auto", backgroundColor: "#374151",
     width: 36, height: 36, borderRadius: 8, alignItems: "center", justifyContent: "center",
   },
+  gifBtn: { backgroundColor: "#1d4ed8", width: 52 },
+  resizeBtn: { backgroundColor: "#0f766e", marginLeft: 0 },
   actionBtnText: { fontSize: 18 },
+  gifSticker: { position: "absolute", transform: [{ translateX: -40 }, { translateY: -40 }], borderRadius: 8 },
+  gifStickerSelected: { borderWidth: 2, borderColor: "#22d3ee" },
+  gifStickerImage: { width: "100%", height: "100%" },
+  gifScroll: { width: "100%", maxHeight: 82, marginBottom: 12 },
+  gifRow: { gap: 8, paddingVertical: 4 },
+  gifThumbWrap: {
+    width: 72, height: 72, borderRadius: 12, overflow: "hidden",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.15)",
+  },
+  gifThumb: { width: "100%", height: "100%" },
+  gifInput: {
+    width: "100%", marginBottom: 12, color: "#fff", fontSize: 12,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.2)",
+    borderRadius: 10, paddingHorizontal: 10, paddingVertical: 10,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
   modalOverlay: {
     position: "absolute", top: 0, right: 0, bottom: 0, left: 0,
     backgroundColor: "rgba(0,0,0,0.85)",
