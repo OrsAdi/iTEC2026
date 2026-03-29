@@ -1,13 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     ScrollView,
     StyleSheet,
     Text,
-    TouchableOpacity,
     View,
 } from "react-native";
 import AppBackground from "./components/AppBackground";
@@ -27,7 +25,6 @@ export default function ProfileScreen() {
   const [posterCount, setPosterCount] = useState(0);
   const [annotatedCount, setAnnotatedCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
     loadProfile();
@@ -82,6 +79,7 @@ export default function ProfileScreen() {
         </BlurView>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
           {/* Avatar */}
           <BlurView intensity={60} tint="dark" style={styles.avatarCard}>
             <View style={styles.avatarCircle}>
@@ -143,28 +141,6 @@ export default function ProfileScreen() {
             </View>
           </BlurView>
 
-          {/* Actions */}
-          <BlurView intensity={60} tint="dark" style={styles.actionsCard}>
-            <Text style={styles.infoCardTitle}>QUICK_ACTIONS</Text>
-            <TouchableOpacity style={styles.actionBtn} onPress={() => router.push("/feed")}>
-              <Ionicons name="images-outline" size={20} color="#007AFF" />
-              <Text style={styles.actionBtnText}>Vezi Feed-ul</Text>
-              <Ionicons name="chevron-forward" size={16} color="#555" />
-            </TouchableOpacity>
-            <View style={styles.divider} />
-            <TouchableOpacity style={styles.actionBtn} onPress={() => router.push("/scan")}>
-              <Ionicons name="camera-outline" size={20} color="#007AFF" />
-              <Text style={styles.actionBtnText}>Scanează Afiș</Text>
-              <Ionicons name="chevron-forward" size={16} color="#555" />
-            </TouchableOpacity>
-            <View style={styles.divider} />
-            <TouchableOpacity style={styles.actionBtn} onPress={() => router.push("/team")}>
-              <Ionicons name="people-outline" size={20} color="#007AFF" />
-              <Text style={styles.actionBtnText}>Vezi Echipa</Text>
-              <Ionicons name="chevron-forward" size={16} color="#555" />
-            </TouchableOpacity>
-          </BlurView>
-
           <Text style={styles.version}>VER. 1.0.26 | iTEC OVERRIDE</Text>
         </ScrollView>
 
@@ -223,12 +199,5 @@ const styles = StyleSheet.create({
   infoLabel: { color: "#555", fontSize: 10, letterSpacing: 1, marginBottom: 2 },
   infoValue: { color: "#fff", fontSize: 13, fontWeight: "600" },
   divider: { height: 1, backgroundColor: "rgba(255,255,255,0.06)" },
-  actionsCard: {
-    borderRadius: 20, padding: 20, marginBottom: 16,
-    borderWidth: 1, borderColor: "rgba(0,122,255,0.2)",
-    overflow: "hidden", backgroundColor: "rgba(0,0,0,0.3)",
-  },
-  actionBtn: { flexDirection: "row", alignItems: "center", paddingVertical: 12, gap: 12 },
-  actionBtnText: { flex: 1, color: "#fff", fontSize: 14, fontWeight: "600" },
   version: { color: "#333", fontSize: 10, textAlign: "center", letterSpacing: 1, marginTop: 8 },
 });
