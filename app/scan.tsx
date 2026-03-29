@@ -5,26 +5,26 @@ import * as ImageManipulator from "expo-image-manipulator";
 import { useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Modal,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Modal,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 import {
-  computeHash,
-  isExactPosterDuplicate,
-  posterSimilarity,
+    computeHash,
+    isExactPosterDuplicate,
+    posterSimilarity,
 } from "./lib/phash_v3";
 import {
-  deletePoster,
-  generateId,
-  getAllPosters,
-  savePoster,
+    deletePoster,
+    generateId,
+    getAllPosters,
+    savePoster,
 } from "./lib/storage";
 
 const FRAME_W = 260;

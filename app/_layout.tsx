@@ -11,6 +11,7 @@ export default function Layout() {
       <Stack.Screen name="draw/[id]" />
       <Stack.Screen name="profile" />
       <Stack.Screen name="settings" />
+      <Stack.Screen name="team" />
     </Stack>
   );
 }
