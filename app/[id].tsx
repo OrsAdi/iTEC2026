@@ -1,21 +1,23 @@
 import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import * as FileSystem from "expo-file-system/legacy";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import {
-    Gesture,
-    GestureDetector,
-    GestureHandlerRootView,
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
 } from "react-native-gesture-handler";
 import Svg, { Path } from "react-native-svg";
 import ViewShot from "react-native-view-shot";
@@ -23,10 +25,10 @@ import { supabase } from "./lib/supabase";
 
 import type { PosterEntry } from "./lib/storage";
 import {
-    deletePoster,
-    DrawPath,
-    getPoster,
-    updateDrawing,
+  deletePoster,
+  DrawPath,
+  getPoster,
+  updateDrawing,
 } from "./lib/storage";
 
 const COLORS = [
@@ -95,6 +97,9 @@ export default function DrawScreen() {
   const [poster, setPoster] = useState<PosterEntry | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveSuccessVisible, setSaveSuccessVisible] = useState(false);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [clearConfirmVisible, setClearConfirmVisible] = useState(false);
   const [paths, setPaths] = useState<DrawPath[]>([]);
   const [livePoints, setLivePoints] = useState<{ x: number; y: number }[]>([]);
   const [activeColor, setActiveColor] = useState(COLORS[0]);
@@ -145,30 +150,27 @@ export default function DrawScreen() {
   const handleUndo = useCallback(() => setPaths((prev) => prev.slice(0, -1)), []);
 
   const handleClear = useCallback(() => {
-    Alert.alert("Șterge adnotările?", "Vrei să elimini toate desenele?", [
-      { text: "Anulează", style: "cancel" },
-      { text: "Șterge", style: "destructive", onPress: () => setPaths([]) },
-    ]);
+    setClearConfirmVisible(true);
+  }, []);
+
+  const handleConfirmClear = useCallback(() => {
+    setPaths([]);
+    setClearConfirmVisible(false);
   }, []);
 
   const handleDelete = useCallback(() => {
-    Alert.alert(
-      "DELETE_POSTER",
-      `Vrei să ștergi afișul "${poster?.title}" din feed?`,
-      [
-        { text: "CANCEL", style: "cancel" },
-        {
-          text: "DELETE",
-          style: "destructive",
-          onPress: async () => {
-            if (!id) return;
-            await deletePoster(id);
-            router.replace("/feed");
-          },
-        },
-      ]
-    );
-  }, [id, poster, router]);
+    setDeleteConfirmVisible(true);
+  }, []);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!id) {
+      setDeleteConfirmVisible(false);
+      return;
+    }
+    await deletePoster(id);
+    setDeleteConfirmVisible(false);
+    router.replace("/feed");
+  }, [id, router]);
 
   const handleSave = useCallback(async () => {
     if (!id) return;
@@ -200,9 +202,7 @@ export default function DrawScreen() {
         }
       }
 
-      Alert.alert("Salvat! ✅", "Adnotările au fost salvate.", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      setSaveSuccessVisible(true);
     } catch {
       Alert.alert("Eroare", "Nu s-a putut salva.");
     } finally {
@@ -335,6 +335,83 @@ export default function DrawScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        <Modal visible={saveSuccessVisible} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+            <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
+              <View style={styles.alertHeaderBox}>
+                <Text style={styles.alertHeaderTextMain}>SAVE</Text>
+                <Text style={styles.alertHeaderTextSub}> STATUS</Text>
+              </View>
+              <View style={styles.successIconCircle}>
+                <Text style={styles.successIconText}>✓</Text>
+              </View>
+              <Text style={styles.alertTitle}>SALVAT CU SUCCES</Text>
+              <Text style={styles.alertMessage}>Adnotările au fost salvate.</Text>
+              <TouchableOpacity
+                style={styles.alertButton}
+                onPress={() => {
+                  setSaveSuccessVisible(false);
+                  router.back();
+                }}
+              >
+                <Text style={styles.alertButtonText}>OK</Text>
+              </TouchableOpacity>
+            </BlurView>
+          </View>
+        </Modal>
+
+        <Modal visible={deleteConfirmVisible} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+            <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
+              <View style={styles.alertHeaderBox}>
+                <Text style={styles.alertHeaderTextMain}>POSTER</Text>
+                <Text style={styles.alertHeaderTextSub}> STATUS</Text>
+              </View>
+              <View style={styles.deleteIconCircle}>
+                <Text style={styles.deleteIconText}>!</Text>
+              </View>
+              <Text style={styles.alertTitle}>DELETE POSTER</Text>
+              <Text style={styles.alertMessage}>
+                Vrei să ștergi afișul "{poster?.title}" din feed?
+              </Text>
+              <TouchableOpacity style={styles.alertDeleteButton} onPress={handleConfirmDelete}>
+                <Text style={styles.alertButtonText}>DELETE</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.alertCancelButton}
+                onPress={() => setDeleteConfirmVisible(false)}
+              >
+                <Text style={styles.alertCancelText}>CANCEL</Text>
+              </TouchableOpacity>
+            </BlurView>
+          </View>
+        </Modal>
+
+        <Modal visible={clearConfirmVisible} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+            <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
+              <View style={styles.alertHeaderBox}>
+                <Text style={styles.alertHeaderTextMain}>ANNOTATION</Text>
+                <Text style={styles.alertHeaderTextSub}> STATUS</Text>
+              </View>
+              <View style={styles.deleteIconCircle}>
+                <Text style={styles.deleteIconText}>!</Text>
+              </View>
+              <Text style={styles.alertTitle}>DELETE ALL NOTES</Text>
+              <Text style={styles.alertMessage}>Vrei să elimini toate adnotările de pe acest afiș?</Text>
+              <TouchableOpacity style={styles.alertDeleteButton} onPress={handleConfirmClear}>
+                <Text style={styles.alertButtonText}>DELETE ALL</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.alertCancelButton}
+                onPress={() => setClearConfirmVisible(false)}
+              >
+                <Text style={styles.alertCancelText}>CANCEL</Text>
+              </TouchableOpacity>
+            </BlurView>
+          </View>
+        </Modal>
       </View>
     </GestureHandlerRootView>
   );
@@ -386,4 +463,50 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: 8, alignItems: "center", justifyContent: "center",
   },
   actionBtnText: { fontSize: 18 },
+  modalOverlay: {
+    position: "absolute", top: 0, right: 0, bottom: 0, left: 0,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "center", alignItems: "center",
+  },
+  customAlertCard: {
+    width: "80%", borderRadius: 25, padding: 30, alignItems: "center",
+    borderWidth: 1, borderColor: "rgba(0,122,255,0.4)",
+    overflow: "hidden", backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  alertHeaderBox: { flexDirection: "row", marginBottom: 20 },
+  alertHeaderTextMain: { color: "#fff", fontSize: 14, fontWeight: "bold", letterSpacing: 2 },
+  alertHeaderTextSub: { color: "#007AFF", fontSize: 14, fontWeight: "bold", letterSpacing: 2 },
+  successIconCircle: {
+    width: 50, height: 50, borderRadius: 25,
+    backgroundColor: "rgba(0,255,120,0.1)",
+    justifyContent: "center", alignItems: "center",
+    marginBottom: 15, borderWidth: 1, borderColor: "#00FF78",
+  },
+  successIconText: { color: "#00FF78", fontSize: 24, fontWeight: "bold" },
+  deleteIconCircle: {
+    width: 50, height: 50, borderRadius: 25,
+    backgroundColor: "rgba(239,68,68,0.1)",
+    justifyContent: "center", alignItems: "center",
+    marginBottom: 15, borderWidth: 1, borderColor: "#ef4444",
+  },
+  deleteIconText: { color: "#ef4444", fontSize: 24, fontWeight: "bold" },
+  alertTitle: { color: "#fff", fontSize: 16, fontWeight: "bold", letterSpacing: 1, marginBottom: 10 },
+  alertMessage: {
+    color: "rgba(255,255,255,0.7)", fontSize: 12,
+    textAlign: "center", lineHeight: 18, marginBottom: 20,
+  },
+  alertButton: {
+    backgroundColor: "#007AFF", width: "100%",
+    paddingVertical: 14, borderRadius: 12, alignItems: "center",
+  },
+  alertDeleteButton: {
+    backgroundColor: "#ef4444", width: "100%",
+    paddingVertical: 14, borderRadius: 12, alignItems: "center", marginBottom: 10,
+  },
+  alertCancelButton: {
+    width: "100%", paddingVertical: 12, borderRadius: 12, alignItems: "center",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  alertButtonText: { color: "#fff", fontWeight: "bold", letterSpacing: 1 },
+  alertCancelText: { color: "#ddd", fontWeight: "700", letterSpacing: 1 },
 });
