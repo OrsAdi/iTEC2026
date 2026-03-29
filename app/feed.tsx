@@ -158,7 +158,7 @@ function PosterCard({
 
   return (
     <TouchableOpacity
-      style={[styles.card, isTeam && styles.cardTeam]}
+      style={[styles.card, item.isTeamPoster && styles.cardTeam]}
       onPress={onPress}
       onLongPress={onLongPress}
       activeOpacity={0.85}
@@ -248,7 +248,7 @@ function PosterCard({
       )}
 
       {/* Badge echipă */}
-      {isTeam && (
+      {item.isTeamPoster && (
         <View style={styles.teamBadge}>
           <Text style={styles.teamBadgeText}>👥</Text>
         </View>
@@ -260,7 +260,7 @@ function PosterCard({
         </Text>
         <Text style={styles.cardDate}>
           {new Date(item.createdAt).toLocaleDateString("ro-RO")}
-          {isTeam ? " · echipă" : ""}
+          {item.isTeamPoster ? " · echipă" : ""}
         </Text>
       </BlurView>
     </TouchableOpacity>
