@@ -171,7 +171,7 @@ export default function TeamScreen() {
         .single();
 
       if (error || !foundTeam) {
-        Alert.alert("EROARE", "Codul echipei nu există.");
+        Alert.alert("ERROR", "Team not found.");
         return;
       }
 
@@ -182,7 +182,7 @@ export default function TeamScreen() {
         .eq("user_id", userId);
 
       if (existing && existing.length > 0) {
-        Alert.alert("INFO", "Ești deja în această echipă.");
+        Alert.alert("INFO", "You are already in this team.");
         return;
       }
 
@@ -192,7 +192,7 @@ export default function TeamScreen() {
       setJoinCode("");
       await loadTeam();
     } catch (e: any) {
-      Alert.alert("EROARE", e.message);
+      Alert.alert("ERROR", e.message);
     }
   };
 
@@ -209,7 +209,7 @@ export default function TeamScreen() {
       setTeam(null);
       setMembers([]);
     } catch (e: any) {
-      Alert.alert("EROARE", e.message);
+      Alert.alert("ERROR", e.message);
     }
   };
 
@@ -388,7 +388,7 @@ export default function TeamScreen() {
             <View style={styles.successIconCircle}>
               <Ionicons name="enter" size={24} color="#007AFF" />
             </View>
-            <Text style={styles.modalTitle}>COD INVITAȚIE</Text>
+            <Text style={styles.modalTitle}>Invite Code</Text>
             <TextInput
               style={styles.modalInput}
               placeholder="Ex: ABC123"
@@ -420,8 +420,8 @@ export default function TeamScreen() {
             <View style={[styles.successIconCircle, { borderColor: "#ef4444", backgroundColor: "rgba(239,68,68,0.1)" }]}>
               <Ionicons name="exit" size={24} color="#ef4444" />
             </View>
-            <Text style={styles.modalTitle}>CONFIRMI?</Text>
-            <Text style={styles.modalMessage}>Vrei să părăsești echipa "{team?.name}"?</Text>
+            <Text style={styles.modalTitle}>CONFIRM?</Text>
+            <Text style={styles.modalMessage}>Do you want to leave the team "{team?.name}"?</Text>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setLeaveModal(false)}>
                 <Text style={styles.modalCancelText}>CANCEL</Text>

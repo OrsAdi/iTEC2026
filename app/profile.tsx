@@ -1,381 +1,907 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Audio } from "expo-av";
 import { BlurView } from "expo-blur";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import * as FileSystem from "expo-file-system/legacy";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Modal,
+    PanResponder,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import AppBackground from "./components/AppBackground";
-import BottomNav from "./components/BottomNav";
-import { getAllPosters } from "./lib/storage";
+import {
+    Gesture,
+    GestureDetector,
+    GestureHandlerRootView,
+} from "react-native-gesture-handler";
+import Svg, { Path } from "react-native-svg";
+import ViewShot from "react-native-view-shot";
 import { supabase } from "./lib/supabase";
 
-interface Profile {
-  id: string;
-  email: string;
-  username: string | null;
-  avatar_url: string | null;
-  created_at: string;
-}
+import type { PosterEntry } from "./lib/storage";
+import {
+    DrawPath,
+    getPoster,
+    resetPosterToOriginal,
+    updateDrawing,
+} from "./lib/storage";
 
-const availableAvatars = [
-  { id: "1", uri: "https://api.dicebear.com/7.x/bottts/png?seed=1" },
-  { id: "2", uri: "https://api.dicebear.com/7.x/bottts/png?seed=2" },
-  { id: "3", uri: "https://api.dicebear.com/7.x/bottts/png?seed=3" },
-  { id: "4", uri: "https://api.dicebear.com/7.x/bottts/png?seed=4" },
+const COLORS = [
+  "#EF4444", "#F97316", "#EAB308", "#22C55E",
+  "#3B82F6", "#8B5CF6", "#EC4899", "#FFFFFF", "#000000",
+];
+const STROKE_WIDTHS = [2, 4, 8, 14];
+const GIF_OPTIONS = [
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExY2xqN2I0c2F2dWN4eXV6dDZ0aWh6bWI1Y2x4dnF0a2YwdW9qdjNnMSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/ICOgUNjpvO0PC/giphy.gif",
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeHVmNnM2MzVibnNmbWwwNDUydDV4N2FwNTA2N2RoMjlpczhqN2d0dSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/l0HlNaQ6gWfllcjDO/giphy.gif",
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExN2xwbHRiYjI1ZW5tOHVhZm5uN2MyZ2Q3c2l4NWIzMmVhM2NncTBpYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/3oEjI6SIIHBdRxXI40/giphy.gif",
+  "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcnN3d2FscDd5d3J2M3RlcWl6a2s0djNyb2xud3NrdXN5ejF5MjVwNyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/fxsqOYnIMEefC/giphy.gif",
+];
+const MUSIC_OPTIONS = [
+  { title: "Neon Pulse", url: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3?filename=technology-ambient-112188.mp3" },
+  { title: "City Loop", url: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_4bfea89d07.mp3?filename=future-bass-112194.mp3" },
+  { title: "Drift", url: "https://cdn.pixabay.com/download/audio/2021/11/25/audio_cb4f0f57f6.mp3?filename=ambient-piano-logo-165357.mp3" },
 ];
 
-export default function ProfileScreen() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editAvatar, setEditAvatar] = useState(availableAvatars[0].uri);
-  const [isAvatarModalVisible, setIsAvatarModalVisible] = useState(false);
-  const [isAlertVisible, setIsAlertVisible] = useState(false);
-  const [posterCount, setPosterCount] = useState(0);
-  const [annotatedCount, setAnnotatedCount] = useState(0);
+type GifSticker = { id: string; uri: string; x: number; y: number; size: number; };
+type AnnotationPayload = { paths: DrawPath[]; stickers: GifSticker[]; musicStickers: MusicSticker[]; backgroundMusic: BackgroundMusic | null; };
+type BackgroundMusic = { title: string; uri: string; startSec: number; durationSec: number; };
+type MusicSticker = { id: string; title: string; uri: string; x: number; y: number; size: number; startSec: number; durationSec: number; };
+type SongSearchResult = { id: string; title: string; artist: string; previewUrl: string; durationSec: number; };
+type RemoteLivePath = { points: { x: number; y: number }[]; color: string; strokeWidth: number; };
+
+function isYouTubeUrl(url: string): boolean {
+  return /(?:youtube\.com|youtu\.be|music\.youtube\.com)/i.test(url);
+}
+
+async function searchSongsByName(query: string): Promise<SongSearchResult[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=12`);
+  if (!response.ok) throw new Error("Search request failed");
+  const json = await response.json();
+  const list = Array.isArray(json?.results) ? json.results : [];
+  return list
+    .filter((item: any) => typeof item?.previewUrl === "string" && item.previewUrl.length > 0)
+    .map((item: any) => {
+      const ms = Number(item.trackTimeMillis ?? 30000);
+      return {
+        id: String(item.trackId ?? `${item.previewUrl}_${Math.random().toString(36).slice(2, 7)}`),
+        title: String(item.trackName ?? "Track"),
+        artist: String(item.artistName ?? "Unknown artist"),
+        previewUrl: String(item.previewUrl),
+        durationSec: Math.max(3, Math.min(30, Math.floor(ms / 1000) || 8)),
+      };
+    });
+}
+
+function pathsToD(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return "";
+  const [first, ...rest] = points;
+  return `M ${first.x} ${first.y} ` + rest.map((p) => `L ${p.x} ${p.y}`).join(" ");
+}
+
+function parseAnnotationPayload(raw: unknown): AnnotationPayload {
+  const empty: AnnotationPayload = { paths: [], stickers: [], musicStickers: [], backgroundMusic: null };
+  if (Array.isArray(raw)) return { ...empty, paths: raw as DrawPath[] };
+  if (typeof raw !== "string") return empty;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return { ...empty, paths: parsed as DrawPath[] };
+    if (parsed && typeof parsed === "object") {
+      const paths = Array.isArray((parsed as any).paths) ? (parsed as any).paths as DrawPath[] : [];
+      const stickers = Array.isArray((parsed as any).stickers) ? (parsed as any).stickers as GifSticker[] : [];
+      const musicStickers = Array.isArray((parsed as any).musicStickers) ? (parsed as any).musicStickers as MusicSticker[] : [];
+      const bg = (parsed as any).backgroundMusic;
+      const backgroundMusic = bg && typeof bg === "object" && typeof bg.uri === "string"
+        ? { title: String(bg.title ?? "Track"), uri: String(bg.uri), startSec: Math.max(0, Number(bg.startSec ?? 0) || 0), durationSec: Math.max(3, Math.min(30, Number(bg.durationSec ?? 8) || 8)) }
+        : null;
+      return { paths, stickers, musicStickers, backgroundMusic };
+    }
+    return empty;
+  } catch { return empty; }
+}
+
+async function uploadAnnotatedImage(localUri: string, posterId: string): Promise<string | null> {
+  try {
+    const { data: session } = await supabase.auth.getSession();
+    const userId = session.session?.user?.id;
+    if (!userId) return null;
+    const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: FileSystem.EncodingType.Base64 });
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const lookup: Record<string, number> = {};
+    for (let i = 0; i < chars.length; i++) lookup[chars[i]] = i;
+    const clean = base64.replace(/[^A-Za-z0-9+/]/g, "");
+    const bytes: number[] = [];
+    for (let i = 0; i < clean.length; i += 4) {
+      const b0 = lookup[clean[i]] ?? 0;
+      const b1 = lookup[clean[i + 1]] ?? 0;
+      const b2 = lookup[clean[i + 2]] ?? 0;
+      const b3 = lookup[clean[i + 3]] ?? 0;
+      bytes.push((b0 << 2) | (b1 >> 4));
+      bytes.push(((b1 & 0xf) << 4) | (b2 >> 2));
+      bytes.push(((b2 & 0x3) << 6) | b3);
+    }
+    const filePath = `${userId}/${posterId}_annotated.jpg`;
+    const { error } = await supabase.storage.from("posters").upload(filePath, new Uint8Array(bytes), { contentType: "image/jpeg", upsert: true });
+    if (error) return null;
+    const { data } = supabase.storage.from("posters").getPublicUrl(filePath);
+    return data.publicUrl;
+  } catch { return null; }
+}
+
+export default function DrawScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+
+  const [poster, setPoster] = useState<PosterEntry | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveSuccessVisible, setSaveSuccessVisible] = useState(false);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [clearConfirmVisible, setClearConfirmVisible] = useState(false);
+  const [gifPickerVisible, setGifPickerVisible] = useState(false);
+  const [musicPickerVisible, setMusicPickerVisible] = useState(false);
+  const [gifUrlInput, setGifUrlInput] = useState("");
+  const [musicUrlInput, setMusicUrlInput] = useState("");
+  const [musicTitleInput, setMusicTitleInput] = useState("Track");
+  const [musicDurationInput, setMusicDurationInput] = useState("8");
+  const [songQueryInput, setSongQueryInput] = useState("");
+  const [songSearchLoading, setSongSearchLoading] = useState(false);
+  const [songSearchResults, setSongSearchResults] = useState<SongSearchResult[]>([]);
+  const [backgroundMusic, setBackgroundMusic] = useState<BackgroundMusic | null>(null);
+  const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
+  const [selectedMusicId, setSelectedMusicId] = useState<string | null>(null);
+  const [isStickerMode, setIsStickerMode] = useState(false);
+  const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
+  const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
+  const [paths, setPaths] = useState<DrawPath[]>([]);
+  const [stickers, setStickers] = useState<GifSticker[]>([]);
+  const [musicStickers, setMusicStickers] = useState<MusicSticker[]>([]);
+  const [livePoints, setLivePoints] = useState<{ x: number; y: number }[]>([]);
+  const [remoteLivePath, setRemoteLivePath] = useState<RemoteLivePath | null>(null);
+  const [activeColor, setActiveColor] = useState(COLORS[0]);
+  const [activeWidth, setActiveWidth] = useState(STROKE_WIDTHS[1]);
+  const [realtimeBanner, setRealtimeBanner] = useState(false);
+
+  const currentPoints = useRef<{ x: number; y: number }[]>([]);
+  const activeColorRef = useRef(activeColor);
+  const activeWidthRef = useRef(activeWidth);
+  const viewShotRef = useRef<ViewShot>(null);
+  const dragStartRef = useRef<{ id: string; x: number; y: number } | null>(null);
+  const activeSoundRef = useRef<Audio.Sound | null>(null);
+  const isEditingRef = useRef(false);
+  const liveUpdateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const channelRef = useRef<any>(null);
+  const stickersRef = useRef(stickers);
+  const musicStickersRef = useRef(musicStickers);
+  const backgroundMusicRef = useRef(backgroundMusic);
+  const remoteLiveClearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => { activeColorRef.current = activeColor; }, [activeColor]);
+  useEffect(() => { activeWidthRef.current = activeWidth; }, [activeWidth]);
+  useEffect(() => { stickersRef.current = stickers; }, [stickers]);
+  useEffect(() => { musicStickersRef.current = musicStickers; }, [musicStickers]);
+  useEffect(() => { backgroundMusicRef.current = backgroundMusic; }, [backgroundMusic]);
+
+  // ── Încarcă posterul ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!id) return;
+    getPoster(id).then((entry) => {
+      if (entry) {
+        setPoster(entry);
+        const payload = parseAnnotationPayload(entry.drawingData as unknown);
+        setPaths(payload.paths);
+        setStickers(payload.stickers);
+        setMusicStickers(payload.musicStickers);
+        setBackgroundMusic(payload.backgroundMusic);
+      }
+      setLoading(false);
+    });
+  }, [id]);
+
+  // ── Real-time subscription + Broadcast ─────────────────────────────────
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`poster_realtime_${id}`)
+      // Broadcast — stroke-uri live pixel cu pixel
+      .on("broadcast", { event: "live_drawing" }, (payload) => {
+        if (isEditingRef.current) return;
+        setRemoteLivePath({
+          points: payload.payload.points ?? [],
+          color: payload.payload.color ?? "#fff",
+          strokeWidth: payload.payload.strokeWidth ?? 4,
+        });
+        // Curăță path-ul remote după 2s de inactivitate
+        if (remoteLiveClearTimer.current) clearTimeout(remoteLiveClearTimer.current);
+        remoteLiveClearTimer.current = setTimeout(() => setRemoteLivePath(null), 2000);
+      })
+      // Broadcast — stroke finalizat
+      .on("broadcast", { event: "stroke_complete" }, (payload) => {
+        if (isEditingRef.current) return;
+        setRemoteLivePath(null);
+        const newPath: DrawPath = {
+          points: payload.payload.points ?? [],
+          color: payload.payload.color ?? "#fff",
+          strokeWidth: payload.payload.strokeWidth ?? 4,
+        };
+        setPaths((prev) => [...prev, newPath]);
+        setRealtimeBanner(true);
+        setTimeout(() => setRealtimeBanner(false), 2000);
+      })
+      // Postgres changes — salvare completă (sync de siguranță)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "posters", filter: `id=eq.${id}` },
+        (payload) => {
+          if (isEditingRef.current) return;
+          const newDrawingData = payload.new?.drawing_data;
+          if (!newDrawingData) return;
+          const normalized = typeof newDrawingData === "string"
+            ? newDrawingData : JSON.stringify(newDrawingData);
+          const parsed = parseAnnotationPayload(normalized);
+          setPaths(parsed.paths);
+          setStickers(parsed.stickers);
+          setMusicStickers(parsed.musicStickers);
+          setBackgroundMusic(parsed.backgroundMusic);
+        }
+      )
+      .subscribe();
+
+    channelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      if (remoteLiveClearTimer.current) clearTimeout(remoteLiveClearTimer.current);
+    };
+  }, [id]);
 
   useEffect(() => {
-    loadProfile();
-    loadStats();
+    if (stickers.length > 0 || musicStickers.length > 0) setIsStickerMode(true);
+  }, [stickers.length, musicStickers.length]);
+
+  useEffect(() => {
+    Audio.setAudioModeAsync({
+      allowsRecordingIOS: false, playsInSilentModeIOS: true,
+      shouldDuckAndroid: true, playThroughEarpieceAndroid: false, staysActiveInBackground: false,
+    }).catch(() => null);
   }, []);
 
-  const loadProfile = async () => {
-    try {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session.session) return;
+  useEffect(() => {
+    return () => { if (activeSoundRef.current) activeSoundRef.current.unloadAsync().catch(() => null); };
+  }, []);
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", session.session.user.id)
-        .single();
-
-      if (!error && data) {
-        setProfile({
-          id: data.id,
-          email: session.session.user.email || "",
-          username: data.full_name || "Unknown User",
-          avatar_url: data.avatar_url || availableAvatars[0].uri,
-          created_at: data.updated_at || new Date().toISOString(),
-        });
-        setEditName(data.full_name || "");
-        setEditAvatar(data.avatar_url || availableAvatars[0].uri);
+  useEffect(() => {
+    let cancelled = false;
+    const startBackground = async () => {
+      if (!backgroundMusic?.uri) {
+        if (activeSoundRef.current) { await activeSoundRef.current.unloadAsync().catch(() => null); activeSoundRef.current = null; }
+        return;
       }
-    } catch (e) {
-      console.log("Profile load error:", e);
-    } finally {
-      setLoading(false);
+      if (activeSoundRef.current) { await activeSoundRef.current.unloadAsync().catch(() => null); activeSoundRef.current = null; }
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: backgroundMusic.uri },
+        { shouldPlay: true, isLooping: true, positionMillis: Math.max(0, Math.floor(backgroundMusic.startSec * 1000)), volume: 1 }
+      );
+      if (cancelled) { await sound.unloadAsync().catch(() => null); return; }
+      activeSoundRef.current = sound;
+    };
+    startBackground().catch(() => null);
+    return () => { cancelled = true; };
+  }, [backgroundMusic]);
+
+  // ── Live update DB cu debounce ──────────────────────────────────────────
+  const handleLiveUpdate = useCallback((livePaths: DrawPath[]) => {
+    if (!id) return;
+    if (liveUpdateTimerRef.current) clearTimeout(liveUpdateTimerRef.current);
+    liveUpdateTimerRef.current = setTimeout(async () => {
+      await supabase
+        .from("posters")
+        .update({
+          drawing_data: JSON.stringify({
+            paths: livePaths,
+            stickers: stickersRef.current,
+            musicStickers: musicStickersRef.current,
+            backgroundMusic: backgroundMusicRef.current,
+          }),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+    }, 300);
+  }, [id]);
+
+  // ── Broadcast live stroke ───────────────────────────────────────────────
+  const broadcastLive = useCallback((points: { x: number; y: number }[], color: string, strokeWidth: number) => {
+    if (!channelRef.current) return;
+    channelRef.current.send({
+      type: "broadcast",
+      event: "live_drawing",
+      payload: { points, color, strokeWidth },
+    });
+  }, []);
+
+  const broadcastStrokeComplete = useCallback((points: { x: number; y: number }[], color: string, strokeWidth: number) => {
+    if (!channelRef.current) return;
+    channelRef.current.send({
+      type: "broadcast",
+      event: "stroke_complete",
+      payload: { points, color, strokeWidth },
+    });
+  }, []);
+
+  // ── Gesture ─────────────────────────────────────────────────────────────
+  const panGesture = Gesture.Pan()
+    .runOnJS(true)
+    .enabled(!isStickerMode)
+    .minDistance(0)
+    .onStart((e) => {
+      isEditingRef.current = true;
+      currentPoints.current = [{ x: e.x, y: e.y }];
+      setLivePoints([{ x: e.x, y: e.y }]);
+    })
+    .onUpdate((e) => {
+      currentPoints.current = [...currentPoints.current, { x: e.x, y: e.y }];
+      setLivePoints([...currentPoints.current]);
+      // Broadcast fiecare punct live
+      broadcastLive(currentPoints.current, activeColorRef.current, activeWidthRef.current);
+    })
+    .onEnd(() => {
+      const completed = [...currentPoints.current];
+      if (completed.length > 0) {
+        const newPath: DrawPath = {
+          points: completed,
+          color: activeColorRef.current,
+          strokeWidth: activeWidthRef.current,
+        };
+        // Broadcast stroke finalizat
+        broadcastStrokeComplete(completed, activeColorRef.current, activeWidthRef.current);
+        setPaths((prev) => {
+          const updated = [...prev, newPath];
+          handleLiveUpdate(updated);
+          return updated;
+        });
+      }
+      currentPoints.current = [];
+      setLivePoints([]);
+    });
+
+  const handleUndo = useCallback(() => {
+    isEditingRef.current = true;
+    setPaths((prev) => {
+      const updated = prev.slice(0, -1);
+      handleLiveUpdate(updated);
+      return updated;
+    });
+  }, [handleLiveUpdate]);
+
+  const handleClear = useCallback(() => { setClearConfirmVisible(true); }, []);
+
+  const handleConfirmClear = useCallback(() => {
+    isEditingRef.current = true;
+    setPaths([]);
+    setStickers([]);
+    setMusicStickers([]);
+    setSelectedStickerId(null);
+    setSelectedMusicId(null);
+    handleLiveUpdate([]);
+    setClearConfirmVisible(false);
+  }, [handleLiveUpdate]);
+
+  const addGifSticker = useCallback((uri: string) => {
+    const clean = uri.trim();
+    if (!clean) return;
+    isEditingRef.current = true;
+    const newSticker: GifSticker = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      uri: clean, x: 0.5, y: 0.5, size: 0.26,
+    };
+    setStickers((prev) => [...prev, newSticker]);
+    setSelectedStickerId(newSticker.id);
+    setSelectedMusicId(null);
+    setIsStickerMode(true);
+    setGifPickerVisible(false);
+    setGifUrlInput("");
+  }, []);
+
+  const setPosterBackgroundMusic = useCallback((uri: string, title: string, durationSec: number) => {
+    const clean = uri.trim();
+    if (!clean) return;
+    if (isYouTubeUrl(clean)) {
+      Alert.alert("YouTube not supported", "Cauta melodia dupa nume si selecteaza un rezultat audio.");
+      return;
     }
-  };
+    isEditingRef.current = true;
+    setBackgroundMusic({ title: title.trim() || "Track", uri: clean, startSec: 0, durationSec: Math.max(3, Math.min(30, durationSec || 8)) });
+    setMusicPickerVisible(false);
+    setMusicUrlInput(""); setMusicTitleInput("Track"); setMusicDurationInput("8");
+    setSongSearchResults([]); setSongQueryInput("");
+  }, []);
 
-  const loadStats = async () => {
-    const posters = await getAllPosters();
-    setPosterCount(posters.length);
-    setAnnotatedCount(
-      posters.filter((p) => p.drawingData !== "[]" && p.drawingData !== "").length
-    );
-  };
-
-  const handleSaveProfile = async () => {
+  const handleSearchSongByName = useCallback(async () => {
+    const query = songQueryInput.trim();
+    if (!query) { Alert.alert("Cauta o melodie", "Scrie numele piesei sau artistul."); return; }
+    setSongSearchLoading(true);
     try {
-      if (!profile) return;
-      const updates = {
-        id: profile.id,
-        full_name: editName,
-        avatar_url: editAvatar,
-        updated_at: new Date(),
-      };
-      const { error } = await supabase.from("profiles").upsert(updates);
-      if (error) throw error;
-      setProfile({ ...profile, username: editName, avatar_url: editAvatar });
-      setIsEditing(false);
-      setIsAlertVisible(true);
-    } catch (error: any) {
-      alert("Error updating profile: " + error.message);
-    }
-  };
+      const results = await searchSongsByName(query);
+      setSongSearchResults(results);
+      if (results.length === 0) Alert.alert("Nimic gasit", "Nu am gasit preview audio.");
+    } catch { Alert.alert("Eroare", "Nu am putut cauta melodia."); }
+    finally { setSongSearchLoading(false); }
+  }, [songQueryInput]);
 
-  if (loading) {
-    return (
-      <AppBackground>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#007AFF" />
-        </View>
-      </AppBackground>
-    );
-  }
+  const handleSelectSongResult = useCallback((song: SongSearchResult) => {
+    setPosterBackgroundMusic(song.previewUrl, `${song.title} - ${song.artist}`, song.durationSec);
+  }, [setPosterBackgroundMusic]);
+
+  const updateSticker = useCallback((idToUpdate: string, update: Partial<GifSticker>) => {
+    setStickers((prev) => prev.map((s) => (s.id === idToUpdate ? { ...s, ...update } : s)));
+  }, []);
+
+  const updateMusicSticker = useCallback((idToUpdate: string, update: Partial<MusicSticker>) => {
+    setMusicStickers((prev) => prev.map((s) => (s.id === idToUpdate ? { ...s, ...update } : s)));
+  }, []);
+
+  const moveStickerToFinger = useCallback((stickerId: string, pageX: number, pageY: number) => {
+    const xNorm = (pageX - canvasOffset.x) / Math.max(1, canvasSize.width);
+    const yNorm = (pageY - canvasOffset.y) / Math.max(1, canvasSize.height);
+    updateSticker(stickerId, { x: Math.max(-0.8, Math.min(1.8, xNorm)), y: Math.max(-0.8, Math.min(1.8, yNorm)) });
+  }, [canvasOffset.x, canvasOffset.y, canvasSize.height, canvasSize.width, updateSticker]);
+
+  const beginStickerDrag = useCallback((sticker: GifSticker, pageX: number, pageY: number) => {
+    isEditingRef.current = true;
+    setSelectedStickerId(sticker.id);
+    setSelectedMusicId(null);
+    setIsStickerMode(true);
+    dragStartRef.current = { id: sticker.id, x: sticker.x, y: sticker.y };
+    moveStickerToFinger(sticker.id, pageX, pageY);
+  }, [moveStickerToFinger]);
+
+  const moveMusicStickerToFinger = useCallback((stickerId: string, pageX: number, pageY: number) => {
+    const xNorm = (pageX - canvasOffset.x) / Math.max(1, canvasSize.width);
+    const yNorm = (pageY - canvasOffset.y) / Math.max(1, canvasSize.height);
+    updateMusicSticker(stickerId, { x: Math.max(-0.8, Math.min(1.8, xNorm)), y: Math.max(-0.8, Math.min(1.8, yNorm)) });
+  }, [canvasOffset.x, canvasOffset.y, canvasSize.height, canvasSize.width, updateMusicSticker]);
+
+  const beginMusicStickerDrag = useCallback((sticker: MusicSticker, pageX: number, pageY: number) => {
+    isEditingRef.current = true;
+    setSelectedMusicId(sticker.id);
+    setSelectedStickerId(null);
+    setIsStickerMode(true);
+    moveMusicStickerToFinger(sticker.id, pageX, pageY);
+  }, [moveMusicStickerToFinger]);
+
+  const endStickerDrag = useCallback(() => { dragStartRef.current = null; }, []);
+
+  const resizeSelectedSticker = useCallback((delta: number) => {
+    isEditingRef.current = true;
+    if (selectedStickerId) {
+      setStickers((prev) => prev.map((s) => s.id === selectedStickerId ? { ...s, size: Math.max(0.1, Math.min(0.7, s.size + delta)) } : s));
+      return;
+    }
+    if (selectedMusicId) {
+      setMusicStickers((prev) => prev.map((s) => s.id === selectedMusicId ? { ...s, size: Math.max(0.2, Math.min(0.95, s.size + delta)) } : s));
+    }
+  }, [selectedMusicId, selectedStickerId]);
+
+  const previewMusicSticker = useCallback(async (sticker: MusicSticker) => {
+    try {
+      if (isYouTubeUrl(sticker.uri)) { Alert.alert("Music Background", "Selecteaza track-ul ca background."); return; }
+      if (activeSoundRef.current) { await activeSoundRef.current.unloadAsync(); activeSoundRef.current = null; }
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: sticker.uri },
+        { shouldPlay: true, positionMillis: Math.max(0, Math.floor(sticker.startSec * 1000)) }
+      );
+      activeSoundRef.current = sound;
+      setTimeout(() => { if (activeSoundRef.current) activeSoundRef.current.stopAsync().catch(() => null); }, Math.max(3, Math.min(20, sticker.durationSec)) * 1000);
+    } catch { Alert.alert("Eroare", "Nu am putut reda acest clip audio."); }
+  }, []);
+
+  const getStickerPanHandlers = useCallback((sticker: GifSticker) =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderGrant: (evt, gs) => beginStickerDrag(sticker, gs.x0, gs.y0 || evt.nativeEvent.pageY),
+      onPanResponderMove: (evt, gs) => moveStickerToFinger(sticker.id, gs.moveX || evt.nativeEvent.pageX, gs.moveY || evt.nativeEvent.pageY),
+      onPanResponderRelease: endStickerDrag,
+      onPanResponderTerminate: endStickerDrag,
+      onPanResponderTerminationRequest: () => false,
+    }).panHandlers,
+    [beginStickerDrag, endStickerDrag, moveStickerToFinger]
+  );
+
+  const getMusicPanHandlers = useCallback((sticker: MusicSticker) =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderGrant: (evt, gs) => beginMusicStickerDrag(sticker, gs.x0, gs.y0 || evt.nativeEvent.pageY),
+      onPanResponderMove: (evt, gs) => moveMusicStickerToFinger(sticker.id, gs.moveX || evt.nativeEvent.pageX, gs.moveY || evt.nativeEvent.pageY),
+      onPanResponderRelease: (_evt, gs) => {
+        const isTap = Math.abs(gs.dx) < 8 && Math.abs(gs.dy) < 8;
+        endStickerDrag();
+        if (isTap) previewMusicSticker(sticker);
+      },
+      onPanResponderTerminate: endStickerDrag,
+      onPanResponderTerminationRequest: () => false,
+    }).panHandlers,
+    [beginMusicStickerDrag, endStickerDrag, moveMusicStickerToFinger, previewMusicSticker]
+  );
+
+  const handleDelete = useCallback(() => { setDeleteConfirmVisible(true); }, []);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!id) { setDeleteConfirmVisible(false); return; }
+    try {
+      const originalImageUri = await resetPosterToOriginal(id);
+      isEditingRef.current = false;
+      setPaths([]); setStickers([]); setMusicStickers([]); setBackgroundMusic(null);
+      if (originalImageUri) {
+        setPoster((prev) => prev ? { ...prev, imageUri: originalImageUri, drawingData: "[]", updatedAt: Date.now() } : prev);
+      }
+      setDeleteConfirmVisible(false);
+    } catch { Alert.alert("Eroare", "Nu s-au putut șterge adnotările."); }
+  }, [id]);
+
+  const handleSave = useCallback(async () => {
+    if (!id) return;
+    if (liveUpdateTimerRef.current) clearTimeout(liveUpdateTimerRef.current);
+    setSaving(true);
+    try {
+      await updateDrawing(id, JSON.stringify({ paths, stickers, musicStickers, backgroundMusic }));
+      isEditingRef.current = false;
+      setSaveSuccessVisible(true);
+    } catch { Alert.alert("Error", "Could not save the annotations."); }
+    finally { setSaving(false); }
+  }, [backgroundMusic, id, musicStickers, paths, stickers]);
+
+  if (loading) return (
+    <View style={styles.center}><ActivityIndicator size="large" color="#007AFF" /></View>
+  );
+
+  if (!poster) return (
+    <View style={styles.center}><Text style={{ color: "#fff" }}>The poster was not found.</Text></View>
+  );
+
+  const canvasContent = (
+    <>
+      <Image source={{ uri: poster.imageUri }} style={styles.posterImage} resizeMode="contain" />
+      {stickers.map((sticker) => {
+        const sizePx = Math.max(42, Math.min(canvasSize.width * 0.7, sticker.size * canvasSize.width));
+        const left = sticker.x * canvasSize.width - sizePx / 2;
+        const top = sticker.y * canvasSize.height - sizePx / 2;
+        return (
+          <View key={sticker.id} style={[styles.gifSticker, selectedStickerId === sticker.id && styles.gifStickerSelected, { width: sizePx, height: sizePx, left, top }]} {...getStickerPanHandlers(sticker)}>
+            <Image source={{ uri: sticker.uri }} style={styles.gifStickerImage} resizeMode="contain" />
+          </View>
+        );
+      })}
+      {musicStickers.map((sticker) => {
+        const widthPx = Math.max(88, Math.min(canvasSize.width * 0.95, sticker.size * canvasSize.width));
+        const left = sticker.x * canvasSize.width - widthPx / 2;
+        const top = sticker.y * canvasSize.height - 20;
+        return (
+          <TouchableOpacity key={sticker.id} style={[styles.musicSticker, selectedMusicId === sticker.id && styles.musicStickerSelected, { width: widthPx, height: 40, left, top }]} activeOpacity={0.85} onPress={() => previewMusicSticker(sticker)} {...getMusicPanHandlers(sticker)}>
+            <Ionicons name="musical-notes" size={14} color="#fff" />
+            <Text style={styles.musicStickerText} numberOfLines={1}>{sticker.title}</Text>
+          </TouchableOpacity>
+        );
+      })}
+      <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+        {/* Stroke-urile salvate */}
+        {paths.map((path, idx) => (
+          <Path key={idx} d={pathsToD(path.points)} stroke={path.color} strokeWidth={path.strokeWidth} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        ))}
+        {/* Stroke-ul live al userului curent */}
+        {livePoints.length > 0 && (
+          <Path d={pathsToD(livePoints)} stroke={activeColorRef.current} strokeWidth={activeWidthRef.current} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        )}
+        {/* Stroke-ul live al colegului — pixel cu pixel via WebSocket */}
+        {remoteLivePath && remoteLivePath.points.length > 0 && (
+          <Path
+            d={pathsToD(remoteLivePath.points)}
+            stroke={remoteLivePath.color}
+            strokeWidth={remoteLivePath.strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+            opacity={0.85}
+          />
+        )}
+      </Svg>
+    </>
+  );
 
   return (
-    <AppBackground>
-      <View style={styles.container}>
+    <GestureHandlerRootView style={styles.root}>
+      <View style={styles.root}>
         {/* Header */}
-        <BlurView intensity={80} tint="dark" style={styles.header}>
-          <View style={styles.logoBox}>
-            <Text style={styles.logoTextMain}>GLITCH_</Text>
-            <Text style={styles.logoTextSub}>TAG</Text>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Text style={styles.backBtnText}>← Back</Text>
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle} numberOfLines={1}>{poster.title}</Text>
+            <Text style={styles.headerDate}>{new Date(poster.createdAt).toLocaleDateString("ro-RO")}</Text>
           </View>
-          <Text style={styles.headerSub}>MY_PROFILE</Text>
-        </BlurView>
-
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-          {/* Avatar & Identitate */}
-          <BlurView intensity={60} tint="dark" style={styles.avatarCard}>
-            {isEditing ? (
-              <TouchableOpacity
-                onPress={() => setIsAvatarModalVisible(true)}
-                style={styles.avatarEditTouch}
-              >
-                <Image source={{ uri: editAvatar }} style={styles.avatarImage} />
-                <View style={styles.editBadge}>
-                  <Ionicons name="camera" size={14} color="#fff" />
-                </View>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.avatarCircle}>
-                {profile?.avatar_url ? (
-                  <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
-                ) : (
-                  <Ionicons name="person" size={48} color="#007AFF" />
-                )}
-              </View>
-            )}
-
-            {isEditing ? (
-              <TextInput
-                style={styles.nameInput}
-                value={editName}
-                onChangeText={setEditName}
-                placeholder="Enter your name"
-                placeholderTextColor="#555"
-              />
-            ) : (
-              <Text style={styles.emailText}>{profile?.username ?? "—"}</Text>
-            )}
-
-            <Text style={styles.joinedText}>
-              Joined {profile?.created_at ? new Date(profile.created_at).toLocaleDateString("ro-RO") : "—"}
-            </Text>
-
-            {isEditing ? (
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProfile}>
-                <Text style={styles.saveBtnText}>SAVE CHANGES</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity style={styles.editBtn} onPress={() => setIsEditing(true)}>
-                <Ionicons name="pencil" size={16} color="#007AFF" />
-                <Text style={styles.editBtnText}>Edit Profile</Text>
-              </TouchableOpacity>
-            )}
-          </BlurView>
-
-          {/* Stats */}
-          <View style={styles.statsRow}>
-            <BlurView intensity={60} tint="dark" style={styles.statCard}>
-              <Text style={styles.statNumber}>{posterCount}</Text>
-              <Text style={styles.statLabel}>AFIȘE{"\n"}SCANATE</Text>
-            </BlurView>
-            <BlurView intensity={60} tint="dark" style={styles.statCard}>
-              <Text style={styles.statNumber}>{annotatedCount}</Text>
-              <Text style={styles.statLabel}>AFIȘE{"\n"}ADNOTATE</Text>
-            </BlurView>
-            <BlurView intensity={60} tint="dark" style={styles.statCard}>
-              <Text style={styles.statNumber}>
-                {posterCount > 0 ? Math.round((annotatedCount / posterCount) * 100) : 0}%
-              </Text>
-              <Text style={styles.statLabel}>RATA{"\n"}ADNOTARE</Text>
-            </BlurView>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
+              <Ionicons name="trash-outline" size={20} color="#ef4444" />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.5 }]} onPress={handleSave} disabled={saving}>
+              {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Salvează</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.modeBtn, isStickerMode && styles.modeBtnActive]} onPress={() => setIsStickerMode((prev) => !prev)}>
+              <Text style={styles.modeBtnText}>{isStickerMode ? "Sticker" : "Draw"}</Text>
+            </TouchableOpacity>
           </View>
+        </View>
 
-          {/* Info */}
-          <BlurView intensity={60} tint="dark" style={styles.infoCard}>
-            <Text style={styles.infoCardTitle}>ACCOUNT_INFO</Text>
-            <View style={styles.infoRow}>
-              <Ionicons name="mail-outline" size={18} color="#007AFF" />
-              <View style={styles.infoTextWrapper}>
-                <Text style={styles.infoLabel}>EMAIL</Text>
-                <Text style={styles.infoValue}>{profile?.email ?? "—"}</Text>
-              </View>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.infoRow}>
-              <Ionicons name="finger-print-outline" size={18} color="#007AFF" />
-              <View style={styles.infoTextWrapper}>
-                <Text style={styles.infoLabel}>USER ID</Text>
-                <Text style={styles.infoValue} numberOfLines={1}>
-                  {profile?.id?.slice(0, 16) ?? "—"}...
-                </Text>
-              </View>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.infoRow}>
-              <Ionicons name="calendar-outline" size={18} color="#007AFF" />
-              <View style={styles.infoTextWrapper}>
-                <Text style={styles.infoLabel}>MEMBER SINCE</Text>
-                <Text style={styles.infoValue}>
-                  {profile?.created_at ? new Date(profile.created_at).toLocaleDateString("ro-RO") : "—"}
-                </Text>
-              </View>
-            </View>
-          </BlurView>
-
-          <Text style={styles.version}>VER. 1.0.26 | iTEC OVERRIDE</Text>
-        </ScrollView>
-
-        {/* Modal Avatar */}
-        <Modal visible={isAvatarModalVisible} animationType="fade" transparent>
-          <View style={styles.modalOverlay}>
-            <BlurView intensity={90} tint="dark" style={styles.modalContainer}>
-              <Text style={[styles.infoCardTitle, { marginBottom: 20, fontSize: 16 }]}>
-                SELECT AVATAR
-              </Text>
-              <FlatList
-                data={availableAvatars}
-                numColumns={2}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    onPress={() => { setEditAvatar(item.uri); setIsAvatarModalVisible(false); }}
-                    style={styles.avatarOption}
-                  >
-                    <Image source={{ uri: item.uri }} style={styles.avatarOptionImage} />
-                  </TouchableOpacity>
-                )}
-              />
-              <TouchableOpacity onPress={() => setIsAvatarModalVisible(false)} style={{ marginTop: 20 }}>
-                <Text style={{ color: "#007AFF", fontWeight: "bold" }}>CANCEL</Text>
-              </TouchableOpacity>
-            </BlurView>
+        {/* Banner real-time */}
+        {realtimeBanner && (
+          <View style={styles.realtimeBanner}>
+            <Ionicons name="people" size={14} color="#00FF78" />
+            <Text style={styles.realtimeBannerText}>Colegul editează live</Text>
           </View>
-        </Modal>
+        )}
 
-        {/* Modal Success */}
-        <Modal visible={isAlertVisible} animationType="fade" transparent>
+        {/* Canvas */}
+        {isStickerMode ? (
+          <ViewShot ref={viewShotRef} style={styles.canvasContainer}
+            onLayout={(e) => { const { width, height, x, y } = e.nativeEvent.layout; setCanvasSize({ width, height }); setCanvasOffset({ x, y }); }}
+            options={{ format: "jpg", quality: 0.9 }}>
+            {canvasContent}
+          </ViewShot>
+        ) : (
+          <GestureDetector gesture={panGesture}>
+            <ViewShot ref={viewShotRef} style={styles.canvasContainer}
+              onLayout={(e) => { const { width, height, x, y } = e.nativeEvent.layout; setCanvasSize({ width, height }); setCanvasOffset({ x, y }); }}
+              options={{ format: "jpg", quality: 0.9 }}>
+              {canvasContent}
+            </ViewShot>
+          </GestureDetector>
+        )}
+
+        {/* Toolbar */}
+        <View style={styles.toolbar}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.colorRow} contentContainerStyle={styles.colorRowContent}>
+            {COLORS.map((color) => (
+              <TouchableOpacity key={color} style={[styles.colorSwatch, { backgroundColor: color }, activeColor === color && styles.colorSwatchActive]} onPress={() => setActiveColor(color)} />
+            ))}
+          </ScrollView>
+          <ScrollView horizontal showsHorizontalScrollIndicator style={styles.actionsScroll} contentContainerStyle={styles.strokeRow}>
+            {STROKE_WIDTHS.map((w) => (
+              <TouchableOpacity key={w} style={[styles.strokeBtn, activeWidth === w && styles.strokeBtnActive]} onPress={() => setActiveWidth(w)}>
+                <View style={{ width: w * 1.8, height: w * 1.8, borderRadius: w, backgroundColor: activeColor }} />
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={styles.actionBtn} onPress={handleUndo}><Text style={styles.actionBtnText}>↩</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: "#7f1d1d" }]} onPress={handleClear}><Text style={styles.actionBtnText}>🗑</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.actionBtn, styles.gifBtn]} onPress={() => setGifPickerVisible(true)}><Text style={styles.actionBtnText}>GIF</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.actionBtn, styles.musicBtn]} onPress={() => setMusicPickerVisible(true)}><Text style={styles.actionBtnText}>MUSIC</Text></TouchableOpacity>
+            {(selectedStickerId || selectedMusicId) && (
+              <>
+                <TouchableOpacity style={[styles.actionBtn, styles.resizeBtn]} onPress={() => resizeSelectedSticker(-0.03)}><Text style={styles.actionBtnText}>-</Text></TouchableOpacity>
+                <TouchableOpacity style={[styles.actionBtn, styles.resizeBtn]} onPress={() => resizeSelectedSticker(0.03)}><Text style={styles.actionBtnText}>+</Text></TouchableOpacity>
+              </>
+            )}
+          </ScrollView>
+        </View>
+
+        {/* Modal GIF */}
+        <Modal visible={gifPickerVisible} animationType="fade" transparent>
           <View style={styles.modalOverlay}>
             <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
-              <Ionicons name="checkmark-circle" size={50} color="#00FF78" style={{ marginBottom: 10 }} />
-              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "bold", marginBottom: 10 }}>
-                PROFILE UPDATED
-              </Text>
-              <TouchableOpacity
-                style={[styles.saveBtn, { width: "100%", marginTop: 15 }]}
-                onPress={() => setIsAlertVisible(false)}
-              >
-                <Text style={styles.saveBtnText}>OK</Text>
+              <View style={styles.alertHeaderBox}>
+                <Text style={styles.alertHeaderTextMain}>GIF</Text>
+                <Text style={styles.alertHeaderTextSub}> PICKER</Text>
+              </View>
+              <Text style={styles.alertMessage}>Alege un GIF preset sau pune link direct.</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gifRow} style={styles.gifScroll}>
+                {GIF_OPTIONS.map((gif) => (
+                  <TouchableOpacity key={gif} onPress={() => addGifSticker(gif)} style={styles.gifThumbWrap}>
+                    <Image source={{ uri: gif }} style={styles.gifThumb} resizeMode="cover" />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <TextInput value={gifUrlInput} onChangeText={setGifUrlInput} placeholder="https://...gif" placeholderTextColor="rgba(255,255,255,0.35)" style={styles.gifInput} autoCapitalize="none" autoCorrect={false} />
+              <TouchableOpacity style={styles.alertButton} onPress={() => addGifSticker(gifUrlInput)}><Text style={styles.alertButtonText}>ADD GIF</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.alertCancelButton} onPress={() => setGifPickerVisible(false)}><Text style={styles.alertCancelText}>CANCEL</Text></TouchableOpacity>
+            </BlurView>
+          </View>
+        </Modal>
+
+        {/* Modal Music */}
+        <Modal visible={musicPickerVisible} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+            <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
+              <View style={styles.alertHeaderBox}>
+                <Text style={styles.alertHeaderTextMain}>MUSIC</Text>
+                <Text style={styles.alertHeaderTextSub}> BACKGROUND</Text>
+              </View>
+              <Text style={styles.alertMessage}>Alege muzica de fundal a posterului.</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gifRow} style={styles.gifScroll}>
+                {MUSIC_OPTIONS.map((m) => (
+                  <TouchableOpacity key={m.url} style={styles.musicPreset} onPress={() => setPosterBackgroundMusic(m.url, m.title, 8)}>
+                    <Ionicons name="musical-note" size={14} color="#fff" />
+                    <Text style={styles.musicPresetText} numberOfLines={1}>{m.title}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <TextInput value={songQueryInput} onChangeText={setSongQueryInput} placeholder="Cauta dupa nume..." placeholderTextColor="rgba(255,255,255,0.35)" style={styles.gifInput} autoCorrect={false} />
+              <TouchableOpacity style={[styles.searchSongButton, songSearchLoading && styles.searchSongButtonDisabled]} disabled={songSearchLoading} onPress={handleSearchSongByName}>
+                {songSearchLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.alertButtonText}>SEARCH SONG</Text>}
+              </TouchableOpacity>
+              {songSearchResults.length > 0 && (
+                <ScrollView style={styles.songResultsList} showsVerticalScrollIndicator={false}>
+                  {songSearchResults.map((song) => (
+                    <TouchableOpacity key={song.id} style={styles.songResultItem} onPress={() => handleSelectSongResult(song)}>
+                      <Text style={styles.songResultTitle} numberOfLines={1}>{song.title}</Text>
+                      <Text style={styles.songResultMeta} numberOfLines={1}>{song.artist}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+              <TextInput value={musicTitleInput} onChangeText={setMusicTitleInput} placeholder="Titlu muzica" placeholderTextColor="rgba(255,255,255,0.35)" style={styles.gifInput} />
+              <TextInput value={musicUrlInput} onChangeText={setMusicUrlInput} placeholder="https://...mp3" placeholderTextColor="rgba(255,255,255,0.35)" style={styles.gifInput} autoCapitalize="none" autoCorrect={false} />
+              <TextInput value={musicDurationInput} onChangeText={setMusicDurationInput} placeholder="Durata secunde (3-20)" placeholderTextColor="rgba(255,255,255,0.35)" style={styles.gifInput} keyboardType="numeric" />
+              <TouchableOpacity style={styles.alertButton} onPress={() => setPosterBackgroundMusic(musicUrlInput, musicTitleInput, Number(musicDurationInput || "8"))}>
+                <Text style={styles.alertButtonText}>SET BACKGROUND MUSIC</Text>
+              </TouchableOpacity>
+              {backgroundMusic?.uri && (
+                <TouchableOpacity style={[styles.alertDeleteButton, { marginTop: 8 }]} onPress={() => setBackgroundMusic(null)}>
+                  <Text style={styles.alertButtonText}>REMOVE BACKGROUND MUSIC</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.alertCancelButton} onPress={() => setMusicPickerVisible(false)}><Text style={styles.alertCancelText}>CANCEL</Text></TouchableOpacity>
+            </BlurView>
+          </View>
+        </Modal>
+
+        {/* Modal Save */}
+        <Modal visible={saveSuccessVisible} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+            <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
+              <View style={styles.alertHeaderBox}>
+                <Text style={styles.alertHeaderTextMain}>SAVE</Text>
+                <Text style={styles.alertHeaderTextSub}> STATUS</Text>
+              </View>
+              <View style={styles.successIconCircle}><Text style={styles.successIconText}>✓</Text></View>
+              <Text style={styles.alertTitle}>SALVAT CU SUCCES</Text>
+              <Text style={styles.alertMessage}>Adnotările au fost salvate.</Text>
+              <TouchableOpacity style={styles.alertButton} onPress={() => { setSaveSuccessVisible(false); router.back(); }}>
+                <Text style={styles.alertButtonText}>OK</Text>
               </TouchableOpacity>
             </BlurView>
           </View>
         </Modal>
 
-        <BottomNav activeTab="profile" />
+        {/* Modal Delete */}
+        <Modal visible={deleteConfirmVisible} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+            <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
+              <View style={styles.alertHeaderBox}>
+                <Text style={styles.alertHeaderTextMain}>POSTER</Text>
+                <Text style={styles.alertHeaderTextSub}> STATUS</Text>
+              </View>
+              <View style={styles.deleteIconCircle}><Text style={styles.deleteIconText}>!</Text></View>
+              <Text style={styles.alertTitle}>DELETE ALL NOTES</Text>
+              <Text style={styles.alertMessage}>Vrei să ștergi toate adnotările de pe "{poster?.title}"?</Text>
+              <TouchableOpacity style={styles.alertDeleteButton} onPress={handleConfirmDelete}><Text style={styles.alertButtonText}>DELETE ALL</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.alertCancelButton} onPress={() => setDeleteConfirmVisible(false)}><Text style={styles.alertCancelText}>CANCEL</Text></TouchableOpacity>
+            </BlurView>
+          </View>
+        </Modal>
+
+        {/* Modal Clear */}
+        <Modal visible={clearConfirmVisible} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+            <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
+              <View style={styles.alertHeaderBox}>
+                <Text style={styles.alertHeaderTextMain}>ANNOTATION</Text>
+                <Text style={styles.alertHeaderTextSub}> STATUS</Text>
+              </View>
+              <View style={styles.deleteIconCircle}><Text style={styles.deleteIconText}>!</Text></View>
+              <Text style={styles.alertTitle}>DELETE ALL NOTES</Text>
+              <Text style={styles.alertMessage}>Vrei să elimini toate adnotările de pe acest afiș?</Text>
+              <TouchableOpacity style={styles.alertDeleteButton} onPress={handleConfirmClear}><Text style={styles.alertButtonText}>DELETE ALL</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.alertCancelButton} onPress={() => setClearConfirmVisible(false)}><Text style={styles.alertCancelText}>CANCEL</Text></TouchableOpacity>
+            </BlurView>
+          </View>
+        </Modal>
       </View>
-    </AppBackground>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  root: { flex: 1, backgroundColor: "#0f0f0f" },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0f0f0f" },
   header: {
-    paddingTop: 55, paddingBottom: 15, paddingHorizontal: 25,
-    borderBottomWidth: 1, borderBottomColor: "rgba(0,122,255,0.3)",
-    alignItems: "center", backgroundColor: "rgba(0,0,0,0.3)",
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 12, paddingTop: 55, paddingBottom: 14,
+    backgroundColor: "#1a1a1a", borderBottomWidth: 1, borderBottomColor: "#2a2a2a",
   },
-  logoBox: {
-    flexDirection: "row", backgroundColor: "rgba(0,122,255,0.1)",
-    paddingHorizontal: 16, paddingVertical: 6,
-    borderRadius: 12, borderWidth: 1, borderColor: "#007AFF", marginBottom: 4,
+  backBtn: { padding: 4 },
+  backBtnText: { color: "#007AFF", fontSize: 14 },
+  headerCenter: { flex: 1, alignItems: "center", marginHorizontal: 8 },
+  headerTitle: { color: "#fff", fontWeight: "600", fontSize: 14 },
+  headerDate: { color: "#555", fontSize: 11, marginTop: 2 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  deleteBtn: { width: 36, height: 36, borderRadius: 8, backgroundColor: "rgba(239,68,68,0.1)", borderWidth: 1, borderColor: "rgba(239,68,68,0.3)", alignItems: "center", justifyContent: "center" },
+  saveBtn: { backgroundColor: "#007AFF", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, minWidth: 80, alignItems: "center" },
+  saveBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  modeBtn: { backgroundColor: "#334155", paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8 },
+  modeBtnActive: { backgroundColor: "#0ea5e9" },
+  modeBtnText: { color: "#fff", fontWeight: "700", fontSize: 11 },
+  realtimeBanner: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "rgba(0,255,120,0.15)",
+    borderBottomWidth: 1, borderBottomColor: "rgba(0,255,120,0.3)",
+    paddingVertical: 6, paddingHorizontal: 16,
   },
-  logoTextMain: { color: "#fff", fontSize: 20, fontWeight: "bold" },
-  logoTextSub: { color: "#007AFF", fontSize: 20, fontWeight: "bold" },
-  headerSub: { color: "#555", fontSize: 11, letterSpacing: 3, marginTop: 4 },
-  scrollContent: { padding: 16, paddingBottom: 100 },
-  avatarCard: {
-    borderRadius: 20, padding: 24, alignItems: "center", marginBottom: 16,
-    borderWidth: 1, borderColor: "rgba(0,122,255,0.2)",
-    overflow: "hidden", backgroundColor: "rgba(0,0,0,0.3)",
-  },
-  avatarCircle: {
-    width: 90, height: 90, borderRadius: 45,
-    backgroundColor: "rgba(0,122,255,0.1)",
-    borderWidth: 2, borderColor: "#007AFF",
-    alignItems: "center", justifyContent: "center",
-    marginBottom: 12, overflow: "hidden",
-  },
-  avatarImage: { width: "100%", height: "100%", borderRadius: 45 },
-  avatarEditTouch: {
-    position: "relative", width: 90, height: 90,
-    marginBottom: 12, borderRadius: 45,
-    borderWidth: 2, borderColor: "#007AFF",
-  },
-  editBadge: {
-    position: "absolute", bottom: 0, right: 0,
-    backgroundColor: "#007AFF", width: 28, height: 28,
-    borderRadius: 14, justifyContent: "center", alignItems: "center",
-    borderWidth: 2, borderColor: "#000",
-  },
-  emailText: { color: "#fff", fontSize: 16, fontWeight: "700", marginBottom: 4 },
-  joinedText: { color: "#555", fontSize: 12, letterSpacing: 1 },
-  nameInput: {
-    color: "#fff", fontSize: 16, fontWeight: "700", marginBottom: 4,
-    borderBottomWidth: 1, borderBottomColor: "#007AFF",
-    minWidth: 150, textAlign: "center", paddingBottom: 5,
-  },
-  editBtn: {
-    flexDirection: "row", alignItems: "center", marginTop: 15,
-    paddingHorizontal: 15, paddingVertical: 8,
-    backgroundColor: "rgba(0,122,255,0.1)",
-    borderRadius: 12, borderWidth: 1, borderColor: "rgba(0,122,255,0.3)",
-  },
-  editBtnText: { color: "#007AFF", fontSize: 12, fontWeight: "bold", marginLeft: 6 },
-  saveBtn: {
-    marginTop: 15, paddingHorizontal: 25,
-    paddingVertical: 10, backgroundColor: "#007AFF", borderRadius: 12,
-  },
-  saveBtnText: { color: "#fff", fontSize: 12, fontWeight: "bold", letterSpacing: 1, textAlign: "center" },
-  statsRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
-  statCard: {
-    flex: 1, borderRadius: 16, padding: 16, alignItems: "center",
-    borderWidth: 1, borderColor: "rgba(0,122,255,0.2)",
-    overflow: "hidden", backgroundColor: "rgba(0,0,0,0.3)",
-  },
-  statNumber: { color: "#007AFF", fontSize: 24, fontWeight: "bold", marginBottom: 4 },
-  statLabel: { color: "#555", fontSize: 9, letterSpacing: 1, textAlign: "center", lineHeight: 14 },
-  infoCard: {
-    borderRadius: 20, padding: 20, marginBottom: 16,
-    borderWidth: 1, borderColor: "rgba(0,122,255,0.2)",
-    overflow: "hidden", backgroundColor: "rgba(0,0,0,0.3)",
-  },
-  infoCardTitle: { color: "#007AFF", fontSize: 11, fontWeight: "bold", letterSpacing: 2, marginBottom: 16 },
-  infoRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: 12 },
-  infoTextWrapper: { flex: 1 },
-  infoLabel: { color: "#555", fontSize: 10, letterSpacing: 1, marginBottom: 2 },
-  infoValue: { color: "#fff", fontSize: 13, fontWeight: "600" },
-  divider: { height: 1, backgroundColor: "rgba(255,255,255,0.06)" },
-  version: { color: "#333", fontSize: 10, textAlign: "center", letterSpacing: 1, marginTop: 8 },
-  modalOverlay: {
-    flex: 1, backgroundColor: "rgba(0,0,0,0.85)",
-    justifyContent: "center", alignItems: "center",
-  },
-  modalContainer: {
-    width: "80%", borderRadius: 25, padding: 25, alignItems: "center",
-    overflow: "hidden", borderWidth: 1, borderColor: "rgba(0,122,255,0.3)",
-  },
-  avatarOption: { margin: 10 },
-  avatarOptionImage: { width: 70, height: 70, borderRadius: 35, borderWidth: 1, borderColor: "#444" },
-  customAlertCard: {
-    width: "70%", borderRadius: 25, padding: 30, alignItems: "center",
-    borderWidth: 1, borderColor: "rgba(0,255,120,0.4)", overflow: "hidden",
-  },
+  realtimeBannerText: { color: "#00FF78", fontSize: 12, fontWeight: "600" },
+  canvasContainer: { flex: 1, backgroundColor: "#000" },
+  posterImage: { ...StyleSheet.absoluteFillObject },
+  toolbar: { backgroundColor: "#1a1a1a", paddingBottom: 16, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#2a2a2a" },
+  colorRow: { maxHeight: 44 },
+  colorRowContent: { paddingHorizontal: 12, gap: 8, alignItems: "center" },
+  colorSwatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: "transparent" },
+  colorSwatchActive: { borderColor: "#fff", transform: [{ scale: 1.2 }] },
+  actionsScroll: { width: "100%", maxHeight: 56 },
+  strokeRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingTop: 10, gap: 8 },
+  strokeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#2a2a2a", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
+  strokeBtnActive: { borderColor: "#007AFF" },
+  actionBtn: { marginLeft: "auto", backgroundColor: "#374151", width: 36, height: 36, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  gifBtn: { backgroundColor: "#1d4ed8", width: 52 },
+  musicBtn: { backgroundColor: "#6d28d9", width: 70, marginLeft: 0 },
+  resizeBtn: { backgroundColor: "#0f766e", marginLeft: 0 },
+  actionBtnText: { fontSize: 18 },
+  gifSticker: { position: "absolute", borderRadius: 8, zIndex: 20 },
+  gifStickerSelected: { borderWidth: 2, borderColor: "#22d3ee" },
+  gifStickerImage: { width: "100%", height: "100%" },
+  musicSticker: { position: "absolute", zIndex: 21, borderRadius: 10, backgroundColor: "rgba(109,40,217,0.82)", borderWidth: 1, borderColor: "rgba(255,255,255,0.25)", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10 },
+  musicStickerSelected: { borderColor: "#22d3ee", borderWidth: 2 },
+  musicStickerText: { color: "#fff", fontSize: 11, fontWeight: "700", flex: 1 },
+  musicPreset: { width: 140, height: 44, borderRadius: 10, backgroundColor: "rgba(109,40,217,0.78)", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 6 },
+  musicPresetText: { color: "#fff", fontWeight: "700", fontSize: 12, flex: 1 },
+  searchSongButton: { backgroundColor: "#0f766e", width: "100%", paddingVertical: 12, borderRadius: 10, alignItems: "center", marginBottom: 10 },
+  searchSongButtonDisabled: { opacity: 0.65 },
+  songResultsList: { width: "100%", maxHeight: 170, marginBottom: 12, borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", backgroundColor: "rgba(255,255,255,0.04)" },
+  songResultItem: { width: "100%", paddingVertical: 10, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.12)" },
+  songResultTitle: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  songResultMeta: { color: "rgba(255,255,255,0.72)", fontSize: 11, marginTop: 2 },
+  gifScroll: { width: "100%", maxHeight: 82, marginBottom: 12 },
+  gifRow: { gap: 8, paddingVertical: 4 },
+  gifThumbWrap: { width: 72, height: 72, borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" },
+  gifThumb: { width: "100%", height: "100%" },
+  gifInput: { width: "100%", marginBottom: 12, color: "#fff", fontSize: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 10, backgroundColor: "rgba(255,255,255,0.06)" },
+  modalOverlay: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", alignItems: "center" },
+  customAlertCard: { width: "80%", borderRadius: 25, padding: 30, alignItems: "center", borderWidth: 1, borderColor: "rgba(0,122,255,0.4)", overflow: "hidden", backgroundColor: "rgba(0,0,0,0.45)" },
+  alertHeaderBox: { flexDirection: "row", marginBottom: 20 },
+  alertHeaderTextMain: { color: "#fff", fontSize: 14, fontWeight: "bold", letterSpacing: 2 },
+  alertHeaderTextSub: { color: "#007AFF", fontSize: 14, fontWeight: "bold", letterSpacing: 2 },
+  successIconCircle: { width: 50, height: 50, borderRadius: 25, backgroundColor: "rgba(0,255,120,0.1)", justifyContent: "center", alignItems: "center", marginBottom: 15, borderWidth: 1, borderColor: "#00FF78" },
+  successIconText: { color: "#00FF78", fontSize: 24, fontWeight: "bold" },
+  deleteIconCircle: { width: 50, height: 50, borderRadius: 25, backgroundColor: "rgba(239,68,68,0.1)", justifyContent: "center", alignItems: "center", marginBottom: 15, borderWidth: 1, borderColor: "#ef4444" },
+  deleteIconText: { color: "#ef4444", fontSize: 24, fontWeight: "bold" },
+  alertTitle: { color: "#fff", fontSize: 16, fontWeight: "bold", letterSpacing: 1, marginBottom: 10 },
+  alertMessage: { color: "rgba(255,255,255,0.7)", fontSize: 12, textAlign: "center", lineHeight: 18, marginBottom: 20 },
+  alertButton: { backgroundColor: "#007AFF", width: "100%", paddingVertical: 14, borderRadius: 12, alignItems: "center" },
+  alertDeleteButton: { backgroundColor: "#ef4444", width: "100%", paddingVertical: 14, borderRadius: 12, alignItems: "center", marginBottom: 10 },
+  alertCancelButton: { width: "100%", paddingVertical: 12, borderRadius: 12, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", backgroundColor: "rgba(255,255,255,0.06)" },
+  alertButtonText: { color: "#fff", fontWeight: "bold", letterSpacing: 1 },
+  alertCancelText: { color: "#ddd", fontWeight: "700", letterSpacing: 1 },
 });

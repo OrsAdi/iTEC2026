@@ -5,22 +5,22 @@ import * as FileSystem from "expo-file-system/legacy";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  PanResponder,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Modal,
+    PanResponder,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import {
-  Gesture,
-  GestureDetector,
-  GestureHandlerRootView,
+    Gesture,
+    GestureDetector,
+    GestureHandlerRootView,
 } from "react-native-gesture-handler";
 import Svg, { Path } from "react-native-svg";
 import ViewShot from "react-native-view-shot";
@@ -28,10 +28,10 @@ import { supabase } from "./lib/supabase";
 
 import type { PosterEntry } from "./lib/storage";
 import {
-  DrawPath,
-  getPoster,
-  resetPosterToOriginal,
-  updateDrawing,
+    DrawPath,
+    getPoster,
+    resetPosterToOriginal,
+    updateDrawing,
 } from "./lib/storage";
 
 const COLORS = [

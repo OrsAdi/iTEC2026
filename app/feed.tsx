@@ -1,7 +1,6 @@
-import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Dimensions,
@@ -23,6 +22,7 @@ import {
     PosterEntry,
     syncPostersFromSupabase,
 } from "./lib/storage";
+import { supabase } from "./lib/supabase";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const CARD_GAP = 12;
@@ -30,30 +30,8 @@ const CARD_W = (SCREEN_W - CARD_GAP * 3) / 2;
 const CARD_H = CARD_W * 1.3;
 const CARD_IMAGE_H = CARD_H - 44;
 
-type GifSticker = {
-    id: string;
-    uri: string;
-    x: number;
-    y: number;
-    size: number;
-};
-
-type AnnotationPayload = {
-    paths: DrawPath[];
-    stickers: GifSticker[];
-    musicStickers: MusicSticker[];
-};
-
-type MusicSticker = {
-    id: string;
-    title: string;
-    uri: string;
-    x: number;
-    y: number;
-    size: number;
-    startSec: number;
-    durationSec: number;
-};
+type GifSticker = { id: string; uri: string; x: number; y: number; size: number; };
+type AnnotationPayload = { paths: DrawPath[]; stickers: GifSticker[]; };
 
 function pathsToD(points: { x: number; y: number }[]): string {
     if (points.length === 0) return "";
@@ -62,34 +40,26 @@ function pathsToD(points: { x: number; y: number }[]): string {
 }
 
 function parseAnnotationPayload(raw: unknown): AnnotationPayload {
-    const empty: AnnotationPayload = { paths: [], stickers: [], musicStickers: [] };
-    if (Array.isArray(raw)) return { paths: raw as DrawPath[], stickers: [], musicStickers: [] };
+    const empty: AnnotationPayload = { paths: [], stickers: [] };
+    if (Array.isArray(raw)) return { paths: raw as DrawPath[], stickers: [] };
     if (typeof raw !== "string") return empty;
     try {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return { paths: parsed as DrawPath[], stickers: [], musicStickers: [] };
+        if (Array.isArray(parsed)) return { paths: parsed as DrawPath[], stickers: [] };
         if (parsed && typeof parsed === "object") {
             return {
                 paths: Array.isArray((parsed as any).paths) ? (parsed as any).paths as DrawPath[] : [],
                 stickers: Array.isArray((parsed as any).stickers) ? (parsed as any).stickers as GifSticker[] : [],
-                musicStickers: Array.isArray((parsed as any).musicStickers) ? (parsed as any).musicStickers as MusicSticker[] : [],
             };
         }
         return empty;
-    } catch {
-        return empty;
-    }
+    } catch { return empty; }
 }
 
-function normalizePathsForCard(
-    paths: DrawPath[],
-    targetW: number,
-    targetH: number
-): DrawPath[] {
+function normalizePathsForCard(paths: DrawPath[], targetW: number, targetH: number): DrawPath[] {
     if (paths.length === 0) return [];
     const points = paths.flatMap((p) => p.points);
     if (points.length === 0) return [];
-
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const pt of points) {
         if (!isFinite(pt.x) || !isFinite(pt.y)) continue;
@@ -99,14 +69,12 @@ function normalizePathsForCard(
         if (pt.y > maxY) maxY = pt.y;
     }
     if (!isFinite(minX)) return paths;
-
     const boxW = Math.max(1, maxX - minX);
     const boxH = Math.max(1, maxY - minY);
     const pad = 8;
     const scale = Math.min((targetW - pad * 2) / boxW, (targetH - pad * 2) / boxH);
     const offsetX = (targetW - boxW * scale) / 2;
     const offsetY = (targetH - boxH * scale) / 2;
-
     return paths.map((path) => ({
         ...path,
         strokeWidth: path.strokeWidth * Math.max(0.8, Math.min(2.2, scale * 0.3)),
@@ -126,9 +94,9 @@ function PosterCard({ item, onPress, onLongPress, currentUserId }: {
     const payload = parseAnnotationPayload(item.drawingData as unknown);
     const paths = payload.paths;
     const stickers = payload.stickers;
-    const musicStickers = payload.musicStickers;
-    const normalizedPaths = normalizePathsForCard(paths, CARD_W, CARD_H - 44);
-    const totalAnnotations = normalizedPaths.length + stickers.length + musicStickers.length;
+    const normalizedPaths = normalizePathsForCard(paths, CARD_W, CARD_IMAGE_H);
+    const totalAnnotations = normalizedPaths.length + stickers.length;
+    const isTeam = item?.isTeamPoster === true && item?.ownerId !== currentUserId;
 
     return (
         <TouchableOpacity
@@ -144,25 +112,12 @@ function PosterCard({ item, onPress, onLongPress, currentUserId }: {
                 const x = Math.max(0, Math.min(CARD_W - sizePx, sticker.x * CARD_W - sizePx / 2));
                 const y = Math.max(0, Math.min(CARD_IMAGE_H - sizePx, sticker.y * CARD_IMAGE_H - sizePx / 2));
                 return (
-                    <Image
-                        key={sticker.id}
-                        source={{ uri: sticker.uri }}
+                    <Image key={sticker.id} source={{ uri: sticker.uri }}
                         style={[styles.cardSticker, { width: sizePx, height: sizePx, left: x, top: y }]}
-                        resizeMode="contain"
-                    />
+                        resizeMode="contain" />
                 );
             })}
-            {musicStickers.map((music) => {
-                const widthPx = Math.max(64, Math.min(CARD_W * 0.9, music.size * CARD_W));
-                const x = Math.max(0, Math.min(CARD_W - widthPx, music.x * CARD_W - widthPx / 2));
-                const y = Math.max(0, Math.min(CARD_IMAGE_H - 24, music.y * CARD_IMAGE_H - 12));
-                return (
-                    <View key={music.id} style={[styles.musicSticker, { left: x, top: y, width: widthPx }]}> 
-                        <Ionicons name="musical-note" size={10} color="#fff" />
-                        <Text style={styles.musicStickerText} numberOfLines={1}>{music.title}</Text>
-                    </View>
-                );
-            })}
+
             {normalizedPaths.length > 0 && (
                 <View style={StyleSheet.absoluteFill} pointerEvents="none">
                     <Svg width={CARD_W} height={CARD_IMAGE_H}>
@@ -175,14 +130,12 @@ function PosterCard({ item, onPress, onLongPress, currentUserId }: {
                 </View>
             )}
 
-            {/* Badge adnotări */}
             {totalAnnotations > 0 && (
                 <View style={styles.badge}>
                     <Text style={styles.badgeText}>✏️ {totalAnnotations}</Text>
                 </View>
             )}
 
-            {/* Badge echipă */}
             {isTeam && (
                 <View style={styles.teamBadge}>
                     <Text style={styles.teamBadgeText}>👥</Text>
@@ -208,16 +161,14 @@ export default function FeedScreen() {
         visible: false, id: "", title: "",
     });
     const router = useRouter();
+    const channelRef = useRef<any>(null);
 
     useFocusEffect(
         useCallback(() => {
             setLoading(true);
 
-            // Obține userId curent
-            import("./lib/supabase").then(({ supabase }) => {
-                supabase.auth.getSession().then(({ data }) => {
-                    setCurrentUserId(data.session?.user?.id ?? null);
-                });
+            supabase.auth.getSession().then(({ data }) => {
+                setCurrentUserId(data.session?.user?.id ?? null);
             });
 
             syncPostersFromSupabase().finally(() => {
@@ -236,6 +187,61 @@ export default function FeedScreen() {
         }, [])
     );
 
+    // Real-time updates pentru feed
+    useEffect(() => {
+        const channel = supabase
+            .channel("feed_realtime")
+            .on(
+                "postgres_changes",
+                { event: "UPDATE", schema: "public", table: "posters" },
+                (payload) => {
+                    const updatedId = payload.new?.id;
+                    if (!updatedId) return;
+
+                    const normalized = typeof payload.new?.drawing_data === "string"
+                        ? payload.new.drawing_data
+                        : JSON.stringify(payload.new?.drawing_data ?? []);
+
+                    setPosters((prev) =>
+                        prev.map((p) => p.id !== updatedId ? p : { ...p, drawingData: normalized })
+                    );
+                }
+            )
+            .on(
+                "postgres_changes",
+                { event: "INSERT", schema: "public", table: "posters" },
+                async () => {
+                    // Nou afiș adăugat de coleg — resync
+                    await syncPostersFromSupabase();
+                    const all = await getAllPosters();
+                    const sorted = [...all].sort((a, b) => {
+                        const aHasDrawing = a.drawingData !== "[]" && a.drawingData !== "";
+                        const bHasDrawing = b.drawingData !== "[]" && b.drawingData !== "";
+                        if (aHasDrawing && !bHasDrawing) return -1;
+                        if (!aHasDrawing && bHasDrawing) return 1;
+                        return b.createdAt - a.createdAt;
+                    });
+                    setPosters(sorted);
+                }
+            )
+            .on(
+                "postgres_changes",
+                { event: "DELETE", schema: "public", table: "posters" },
+                (payload) => {
+                    const deletedId = payload.old?.id;
+                    if (!deletedId) return;
+                    setPosters((prev) => prev.filter((p) => p.id !== deletedId));
+                }
+            )
+            .subscribe();
+
+        channelRef.current = channel;
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
+
     const handleDeleteRequest = useCallback((id: string, title: string) => {
         setDeleteModal({ visible: true, id, title });
     }, []);
@@ -252,14 +258,12 @@ export default function FeedScreen() {
         closeDeleteModal();
     }, [deleteModal.id, closeDeleteModal]);
 
-    // Număr afișe proprii vs echipă
-    const myPosters = posters.filter(p => !p.isTeamPoster || p.ownerId === currentUserId).length;
-    const teamPosters = posters.filter(p => p.isTeamPoster && p.ownerId !== currentUserId).length;
+    const myPosters = posters.filter(p => !(p?.isTeamPoster === true && p?.ownerId !== currentUserId)).length;
+    const teamPosters = posters.filter(p => p?.isTeamPoster === true && p?.ownerId !== currentUserId).length;
 
     return (
         <AppBackground>
             <View style={styles.container}>
-                {/* Header */}
                 <BlurView intensity={80} tint="dark" style={styles.header}>
                     <View style={styles.logoBox}>
                         <Text style={styles.logoTextMain}>GLITCH_</Text>
@@ -311,7 +315,6 @@ export default function FeedScreen() {
                     />
                 )}
 
-                {/* Modal delete */}
                 <Modal visible={deleteModal.visible} animationType="fade" transparent>
                     <View style={styles.modalOverlay}>
                         <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
@@ -324,7 +327,7 @@ export default function FeedScreen() {
                             </View>
                             <Text style={styles.alertTitle}>DELETE POSTER</Text>
                             <Text style={styles.alertMessage}>
-                                Remove "{deleteModal.title}" from the system?
+                                <Text style={styles.alertMessage}>{`Remove "${deleteModal.title}" from the system?`}</Text>
                             </Text>
                             <View style={styles.alertActions}>
                                 <TouchableOpacity style={styles.alertCancelButton} onPress={closeDeleteModal}>
@@ -378,24 +381,9 @@ const styles = StyleSheet.create({
         width: CARD_W, height: CARD_H, borderRadius: 16, overflow: "hidden",
         borderWidth: 1, borderColor: "rgba(0,122,255,0.2)", backgroundColor: "#111",
     },
-    cardTeam: {
-        borderColor: "rgba(0,200,100,0.4)",
-    },
+    cardTeam: { borderColor: "rgba(0,200,100,0.4)" },
     cardImage: { width: CARD_W, height: CARD_H - 44 },
     cardSticker: { position: "absolute" },
-    musicSticker: {
-        position: "absolute",
-        height: 24,
-        borderRadius: 8,
-        backgroundColor: "rgba(109,40,217,0.82)",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.25)",
-        paddingHorizontal: 6,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 4,
-    },
-    musicStickerText: { color: "#fff", fontSize: 9, fontWeight: "700", flex: 1 },
     cardFooter: {
         height: 44, paddingHorizontal: 10, justifyContent: "center",
         backgroundColor: "rgba(0,0,0,0.5)", overflow: "hidden",
