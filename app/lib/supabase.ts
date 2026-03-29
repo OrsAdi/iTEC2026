@@ -2,11 +2,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 import "react-native-url-polyfill/auto";
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-// Copiază cheia lungă din screenshot-ul tău în locul ghilimelelor de mai jos:
-const supabasepub = process.env.EXPO_PUBLIC_SUPABASE_PUB;
+const supabaseUrl = "https://kgqgiprdojdqjjniyiwm.supabase.co";
+const supabaseAnonKey = "sb_publishable_z7dcC5t-ERJ25hACfJ6u4Q_nKbD5IkB";
 
-export const supabase = createClient(supabaseUrl, supabasepub, {
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,
