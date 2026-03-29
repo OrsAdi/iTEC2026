@@ -46,7 +46,7 @@ export default function AuthScreen() {
         ]),
       ])
     ).start();
-  }, []);
+  }, [opacityAnim, pulseAnim]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -56,7 +56,7 @@ export default function AuthScreen() {
       if (session) router.replace("/feed");
     });
     return () => listener.subscription.unsubscribe();
-  }, []);
+  }, [router]);
 
   const showError = (title: string, message: string) => {
     setModal({ visible: true, type: "error", title, message });

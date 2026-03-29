@@ -1,21 +1,7 @@
-import * as Crypto from "expo-crypto";
 import * as ImageManipulator from "expo-image-manipulator";
 
-type ParsedV2 = {
-    version: "v2";
-    strictHash: string;
-    signature: number[];
-};
 
-type ParsedV3 = {
-    version: "v3";
-    strictHash: string;
-    simHash: string;
-};
 
-const HEX_POPCOUNT = [
-    0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
-];
 
 export async function computeHash(imageUri: string): Promise<string> {
     const tiny = await ImageManipulator.manipulateAsync(

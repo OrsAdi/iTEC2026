@@ -24,7 +24,6 @@ import {
 } from "react-native-gesture-handler";
 import Svg, { Path } from "react-native-svg";
 import ViewShot from "react-native-view-shot";
-import { supabase } from "./lib/supabase";
 
 import type { PosterEntry } from "./lib/storage";
 import {
@@ -348,16 +347,6 @@ async function materializeStickerUri(rawUri: string): Promise<string> {
   return uri;
 }
 
-function parseDrawPaths(raw: unknown): DrawPath[] {
-  if (Array.isArray(raw)) return raw as DrawPath[];
-  if (typeof raw !== "string") return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as DrawPath[]) : [];
-  } catch {
-    return [];
-  }
-}
 
 function parseAnnotationPayload(raw: unknown): AnnotationPayload {
   const empty: AnnotationPayload = { paths: [], stickers: [], musicStickers: [], backgroundMusic: null };
@@ -399,53 +388,6 @@ function parseAnnotationPayload(raw: unknown): AnnotationPayload {
   }
 }
 
-async function uploadAnnotatedImage(
-  localUri: string,
-  posterId: string,
-): Promise<string | null> {
-  try {
-    const { data: session } = await supabase.auth.getSession();
-    const userId = session.session?.user?.id;
-    if (!userId) return null;
-
-    const base64 = await FileSystem.readAsStringAsync(localUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-
-    const chars =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    const lookup: Record<string, number> = {};
-    for (let i = 0; i < chars.length; i++) lookup[chars[i]] = i;
-    const clean = base64.replace(/[^A-Za-z0-9+/]/g, "");
-    const bytes: number[] = [];
-    for (let i = 0; i < clean.length; i += 4) {
-      const b0 = lookup[clean[i]] ?? 0;
-      const b1 = lookup[clean[i + 1]] ?? 0;
-      const b2 = lookup[clean[i + 2]] ?? 0;
-      const b3 = lookup[clean[i + 3]] ?? 0;
-      bytes.push((b0 << 2) | (b1 >> 4));
-      bytes.push(((b1 & 0xf) << 4) | (b2 >> 2));
-      bytes.push(((b2 & 0x3) << 6) | b3);
-    }
-    const uint8 = new Uint8Array(bytes);
-
-    // Upload cu suffix _annotated ca să nu suprascrie originalul
-    const filePath = `${userId}/${posterId}_annotated.jpg`;
-    const { error } = await supabase.storage
-      .from("posters")
-      .upload(filePath, uint8, {
-        contentType: "image/jpeg",
-        upsert: true,
-      });
-
-    if (error) return null;
-
-    const { data } = supabase.storage.from("posters").getPublicUrl(filePath);
-    return data.publicUrl;
-  } catch {
-    return null;
-  }
-}
 
 export default function DrawScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -1444,7 +1386,7 @@ export default function DrawScreen() {
               </View>
               <Text style={styles.alertTitle}>DELETE POSTER</Text>
               <Text style={styles.alertMessage}>
-                Do you want to permanently delete "{poster?.title}"?
+                Do you want to permanently delete &quot;{poster?.title}&quot;?
               </Text>
               <TouchableOpacity style={styles.alertDeleteButton} onPress={handleConfirmDelete}>
                 <Text style={styles.alertButtonText}>DELETE POSTER</Text>
