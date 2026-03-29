@@ -15,7 +15,15 @@ import {
   View,
 } from "react-native";
 
-import { computeHash, isSamePosterAsync } from "./lib/phash";
+import {
+  computeHash,
+  isExactPosterDuplicate,
+  posterSimilarity,
+} from "./lib/phash_v3";
+import {
+  isExactPosterDuplicate as isExactPosterDuplicateLegacy,
+  posterSimilarity as posterSimilarityLegacy,
+} from "./lib/phash";
 import {
   deletePoster,
   generateId,
@@ -25,6 +33,8 @@ import {
 
 const FRAME_W = 260;
 const FRAME_H = 340;
+const DUPLICATE_SIMILARITY_THRESHOLD = 0.72;
+const VERY_SIMILAR_THRESHOLD = 0.62;
 
 export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -45,10 +55,14 @@ export default function ScanScreen() {
     visible: boolean;
     posterId: string;
     posterTitle: string;
+    similarPosterTitle: string;
+    similarityScore: number;
   }>({
     visible: false,
     posterId: "",
     posterTitle: "",
+    similarPosterTitle: "",
+    similarityScore: 0,
   });
   const [facing] = useState<CameraType>("back");
   const cameraRef = useRef<CameraView>(null);
@@ -93,6 +107,8 @@ export default function ScanScreen() {
       visible: false,
       posterId: "",
       posterTitle: "",
+      similarPosterTitle: "",
+      similarityScore: 0,
     }));
   }, []);
 
@@ -169,25 +185,63 @@ export default function ScanScreen() {
 
       setProcessingText("Recunosc afișul...");
       const allPosters = await getAllPosters();
-      let duplicate: (typeof allPosters)[number] | null = null;
+      let exactDuplicate: (typeof allPosters)[number] | null = null;
+      let similarCandidate: (typeof allPosters)[number] | null = null;
       let bestScore = 0;
 
       for (const poster of allPosters) {
-        const score = posterSimilarity(poster.hash, hash);
+        let candidateHash = poster.hash;
+
+        // Migrează hash-urile vechi la formatul nou pentru comparații stabile.
+        if (!candidateHash.startsWith("v4|")) {
+          try {
+            candidateHash = await computeHash(poster.imageUri);
+            await savePoster({
+              ...poster,
+              hash: candidateHash,
+              updatedAt: Date.now(),
+            });
+          } catch {
+            candidateHash = poster.hash;
+          }
+        }
+
+        const exactNow = isExactPosterDuplicate(candidateHash, hash);
+        const exactLegacy = isExactPosterDuplicateLegacy(candidateHash, hash);
+        if (exactNow || exactLegacy) {
+          exactDuplicate = poster;
+          break;
+        }
+
+        const scoreNow = posterSimilarity(candidateHash, hash);
+        const scoreLegacy = posterSimilarityLegacy(candidateHash, hash);
+        const score = Math.max(scoreNow, scoreLegacy);
         if (score > bestScore) {
           bestScore = score;
-          duplicate = poster;
+          similarCandidate = poster;
         }
       }
 
-      // Acceptăm duplicate doar la o similaritate foarte ridicată.
-      const isDuplicate = duplicate !== null && bestScore >= 0.9;
+      // 3 stări: duplicat (exact sau aproape identic), foarte asemănător, sau nou.
+      const similarityDuplicate =
+        exactDuplicate === null &&
+        similarCandidate !== null &&
+        bestScore >= DUPLICATE_SIMILARITY_THRESHOLD;
 
-      if (isDuplicate && duplicate) {
+      const isDuplicate = exactDuplicate !== null || similarityDuplicate;
+      const duplicateTarget = exactDuplicate ?? (similarityDuplicate ? similarCandidate : null);
+
+      const isVerySimilar =
+        similarCandidate !== null &&
+        bestScore >= VERY_SIMILAR_THRESHOLD &&
+        bestScore < DUPLICATE_SIMILARITY_THRESHOLD &&
+        !isDuplicate;
+
+      if (isDuplicate && duplicateTarget) {
         setDuplicateModal({
           visible: true,
-          posterId: duplicate.id,
-          posterTitle: duplicate.title,
+          posterId: duplicateTarget.id,
+          posterTitle: duplicateTarget.title,
           tempUri: destUri,
         });
       } else {
@@ -207,6 +261,9 @@ export default function ScanScreen() {
           visible: true,
           posterId: id,
           posterTitle: title,
+          similarPosterTitle:
+            isVerySimilar && similarCandidate ? similarCandidate.title : "",
+          similarityScore: isVerySimilar ? bestScore : 0,
         });
       }
     } catch (err: any) {
@@ -341,9 +398,15 @@ export default function ScanScreen() {
               <Text style={styles.successIconText}>✓</Text>
             </View>
 
-            <Text style={styles.alertTitle}>AFIȘ NOU SALVAT</Text>
+            <Text style={styles.alertTitle}>
+              {newPosterModal.similarPosterTitle
+                ? "AFIȘ FOARTE ASEMĂNĂTOR"
+                : "AFIȘ NOU SALVAT"}
+            </Text>
             <Text style={styles.alertMessage}>
-              "{newPosterModal.posterTitle}" a fost adăugat în feed.
+              {newPosterModal.similarPosterTitle
+                ? `"${newPosterModal.posterTitle}" a fost salvat ca nou. Seamănă cu "${newPosterModal.similarPosterTitle}" (${Math.round(newPosterModal.similarityScore * 100)}%).`
+                : `"${newPosterModal.posterTitle}" a fost adăugat în feed.`}
             </Text>
 
             <TouchableOpacity

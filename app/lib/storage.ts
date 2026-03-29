@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { posterSimilarity } from "./phash";
+import { isExactPosterDuplicate } from "./phash_v3";
+import { isExactPosterDuplicate as isExactPosterDuplicateLegacy } from "./phash";
 
 export interface PosterEntry {
   id: string;
@@ -67,7 +68,13 @@ export async function deletePoster(id: string): Promise<void> {
 
 export async function findDuplicate(hash: string): Promise<PosterEntry | null> {
   const all = await getAllPosters();
-  return all.find((p) => posterSimilarity(p.hash, hash) >= 0.9) ?? null;
+  return (
+    all.find(
+      (p) =>
+        isExactPosterDuplicate(p.hash, hash) ||
+        isExactPosterDuplicateLegacy(p.hash, hash)
+    ) ?? null
+  );
 }
 
 export function generateId(): string {

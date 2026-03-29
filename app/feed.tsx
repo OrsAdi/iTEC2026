@@ -27,9 +27,48 @@ const CARD_GAP = 12;
 const CARD_W = (SCREEN_W - CARD_GAP * 3) / 2;
 const CARD_H = CARD_W * 1.3;
 
+function sanitizePaths(raw: unknown): DrawPath[] {
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((entry) => {
+      const points = Array.isArray((entry as DrawPath)?.points)
+        ? (entry as DrawPath).points
+            .filter(
+              (p) =>
+                typeof p?.x === "number" &&
+                typeof p?.y === "number" &&
+                Number.isFinite(p.x) &&
+                Number.isFinite(p.y),
+            )
+            .map((p) => ({ x: p.x, y: p.y }))
+        : [];
+
+      const color =
+        typeof (entry as DrawPath)?.color === "string" &&
+        (entry as DrawPath).color.length > 0
+          ? (entry as DrawPath).color
+          : "#007AFF";
+
+      const strokeWidthRaw = Number((entry as DrawPath)?.strokeWidth);
+      const strokeWidth =
+        Number.isFinite(strokeWidthRaw) && strokeWidthRaw > 0
+          ? strokeWidthRaw
+          : 2;
+
+      return {
+        points,
+        color,
+        strokeWidth,
+      };
+    })
+    .filter((p) => p.points.length >= 2);
+}
+
 function pathsToD(points: { x: number; y: number }[]): string {
   if (points.length === 0) return "";
   const [first, ...rest] = points;
+  if (!Number.isFinite(first.x) || !Number.isFinite(first.y)) return "";
   return (
     `M ${first.x} ${first.y} ` + rest.map((p) => `L ${p.x} ${p.y}`).join(" ")
   );
@@ -46,7 +85,7 @@ function PosterCard({
 }) {
   let paths: DrawPath[] = [];
   try {
-    paths = JSON.parse(item.drawingData);
+    paths = sanitizePaths(JSON.parse(item.drawingData));
   } catch {}
 
   return (
@@ -65,17 +104,21 @@ function PosterCard({
       {paths.length > 0 && (
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
           <Svg width={CARD_W} height={CARD_H - 44}>
-            {paths.map((p, i) => (
-              <Path
-                key={i}
-                d={pathsToD(p.points)}
-                stroke={p.color}
-                strokeWidth={p.strokeWidth * 0.3}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-              />
-            ))}
+            {paths.map((p, i) => {
+              const d = pathsToD(p.points);
+              if (!d) return null;
+              return (
+                <Path
+                  key={i}
+                  d={d}
+                  stroke={p.color}
+                  strokeWidth={p.strokeWidth * 0.3}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  fill="none"
+                />
+              );
+            })}
           </Svg>
         </View>
       )}
@@ -86,14 +129,14 @@ function PosterCard({
         </View>
       )}
 
-      <BlurView intensity={60} tint="dark" style={styles.cardFooter}>
+      <View style={styles.cardFooter}>
         <Text style={styles.cardTitle} numberOfLines={1}>
           {item.title}
         </Text>
         <Text style={styles.cardDate}>
           {new Date(item.createdAt).toLocaleDateString("ro-RO")}
         </Text>
-      </BlurView>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -177,6 +220,11 @@ export default function FeedScreen() {
             data={posters}
             keyExtractor={(item) => item.id}
             numColumns={2}
+            removeClippedSubviews
+            initialNumToRender={8}
+            maxToRenderPerBatch={8}
+            windowSize={5}
+            updateCellsBatchingPeriod={60}
             contentContainerStyle={styles.grid}
             columnWrapperStyle={styles.row}
             ListHeaderComponent={

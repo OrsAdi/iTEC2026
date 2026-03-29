@@ -13,6 +13,13 @@ type ParsedV3 = {
     simHash: string;
 };
 
+type ParsedV4 = {
+    version: "v4";
+    strictHash: string;
+    simHash: string;
+    signature: number[];
+};
+
 const HEX_POPCOUNT = [
     0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
 ];
@@ -30,7 +37,8 @@ export async function computeHash(imageUri: string): Promise<string> {
         base64
     );
     const simHash = buildSimHash128(base64);
-    return `v3|${strictHash}|${simHash}`;
+    const signature = buildSignature(base64);
+    return `v4|${strictHash}|${simHash}|${signature.join(".")}`;
 }
 
 export async function isSamePosterAsync(
@@ -135,6 +143,20 @@ function parseV3(hash: string): ParsedV3 | null {
     return { version: "v3", strictHash, simHash };
 }
 
+function parseV4(hash: string): ParsedV4 | null {
+    if (!hash.startsWith("v4|")) return null;
+    const parts = hash.split("|");
+    if (parts.length !== 4) return null;
+    const strictHash = parts[1];
+    const simHash = parts[2].toLowerCase();
+    const signature = parts[3]
+        .split(".")
+        .map((n) => Number(n))
+        .filter((n) => Number.isFinite(n));
+    if (!strictHash || !isHex128(simHash) || signature.length === 0) return null;
+    return { version: "v4", strictHash, simHash, signature };
+}
+
 function parseV2(hash: string): ParsedV2 | null {
     if (!hash.startsWith("v2|")) return null;
     const parts = hash.split("|");
@@ -219,7 +241,34 @@ function v2ToPseudoSimHash(v2: ParsedV2): string {
     return (joined + "0".repeat(32)).slice(0, 32);
 }
 
+function v3ToPseudoSignature(v3: ParsedV3): number[] {
+    const sig: number[] = [];
+    for (let i = 0; i < v3.simHash.length; i += 2) {
+        const part = v3.simHash.slice(i, i + 2);
+        const value = parseInt(part, 16);
+        sig.push(Number.isNaN(value) ? 0 : value);
+    }
+    return sig;
+}
+
+function signatureFromAny(hash: string): number[] | null {
+    const v4 = parseV4(hash);
+    if (v4) return v4.signature;
+
+    const v2 = parseV2(hash);
+    if (v2) return v2.signature;
+
+    const v3 = parseV3(hash);
+    if (v3) return v3ToPseudoSignature(v3);
+
+    if (!hash) return null;
+    return buildSignature(hash);
+}
+
 function simHashFromAny(hash: string): string | null {
+    const v4 = parseV4(hash);
+    if (v4) return v4.simHash;
+
     const v3 = parseV3(hash);
     if (v3) return v3.simHash;
 
@@ -231,6 +280,10 @@ function simHashFromAny(hash: string): string | null {
 }
 
 export function isExactPosterDuplicate(hashA: string, hashB: string): boolean {
+    const a4 = parseV4(hashA);
+    const b4 = parseV4(hashB);
+    if (a4 && b4) return a4.strictHash === b4.strictHash;
+
     const a3 = parseV3(hashA);
     const b3 = parseV3(hashB);
     if (a3 && b3) return a3.strictHash === b3.strictHash;
@@ -248,7 +301,14 @@ export function posterSimilarity(hashA: string, hashB: string): number {
 
     const simA = simHashFromAny(hashA);
     const simB = simHashFromAny(hashB);
-    if (simA && simB) return simHashSimilarity(simA, simB);
+    const sigA = signatureFromAny(hashA);
+    const sigB = signatureFromAny(hashB);
+
+    const simHashScore = simA && simB ? simHashSimilarity(simA, simB) : 0;
+    const signatureScore = sigA && sigB ? cosineSimilarity(sigA, sigB) : 0;
+    if (simHashScore > 0 || signatureScore > 0) {
+        return simHashScore * 0.35 + signatureScore * 0.65;
+    }
 
     return legacySimilarity(hashA, hashB);
 }
