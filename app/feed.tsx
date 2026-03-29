@@ -12,6 +12,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import Svg, { Path } from "react-native-svg";
 import AppBackground from "./components/AppBackground";
 import BottomNav from "./components/BottomNav";
@@ -40,6 +41,18 @@ type GifSticker = {
 type AnnotationPayload = {
     paths: DrawPath[];
     stickers: GifSticker[];
+    musicStickers: MusicSticker[];
+};
+
+type MusicSticker = {
+    id: string;
+    title: string;
+    uri: string;
+    x: number;
+    y: number;
+    size: number;
+    startSec: number;
+    durationSec: number;
 };
 
 function pathsToD(points: { x: number; y: number }[]): string {
@@ -60,16 +73,17 @@ function parseDrawPaths(raw: unknown): DrawPath[] {
 }
 
 function parseAnnotationPayload(raw: unknown): AnnotationPayload {
-    const empty: AnnotationPayload = { paths: [], stickers: [] };
-    if (Array.isArray(raw)) return { paths: raw as DrawPath[], stickers: [] };
+    const empty: AnnotationPayload = { paths: [], stickers: [], musicStickers: [] };
+    if (Array.isArray(raw)) return { paths: raw as DrawPath[], stickers: [], musicStickers: [] };
     if (typeof raw !== "string") return empty;
     try {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return { paths: parsed as DrawPath[], stickers: [] };
+        if (Array.isArray(parsed)) return { paths: parsed as DrawPath[], stickers: [], musicStickers: [] };
         if (parsed && typeof parsed === "object") {
             return {
                 paths: Array.isArray((parsed as any).paths) ? (parsed as any).paths as DrawPath[] : [],
                 stickers: Array.isArray((parsed as any).stickers) ? (parsed as any).stickers as GifSticker[] : [],
+                musicStickers: Array.isArray((parsed as any).musicStickers) ? (parsed as any).musicStickers as MusicSticker[] : [],
             };
         }
         return empty;
@@ -131,8 +145,9 @@ function PosterCard({ item, onPress, onLongPress }: {
     const payload = parseAnnotationPayload(item.drawingData as unknown);
     const paths = payload.paths;
     const stickers = payload.stickers;
+    const musicStickers = payload.musicStickers;
     const normalizedPaths = normalizePathsForCard(paths, CARD_W, CARD_H - 44);
-    const totalAnnotations = normalizedPaths.length + stickers.length;
+    const totalAnnotations = normalizedPaths.length + stickers.length + musicStickers.length;
 
     return (
         <TouchableOpacity style={styles.card} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
@@ -148,6 +163,17 @@ function PosterCard({ item, onPress, onLongPress }: {
                         style={[styles.cardSticker, { width: sizePx, height: sizePx, left: x, top: y }]}
                         resizeMode="contain"
                     />
+                );
+            })}
+            {musicStickers.map((music) => {
+                const widthPx = Math.max(64, Math.min(CARD_W * 0.9, music.size * CARD_W));
+                const x = Math.max(0, Math.min(CARD_W - widthPx, music.x * CARD_W - widthPx / 2));
+                const y = Math.max(0, Math.min(CARD_IMAGE_H - 24, music.y * CARD_IMAGE_H - 12));
+                return (
+                    <View key={music.id} style={[styles.musicSticker, { left: x, top: y, width: widthPx }]}> 
+                        <Ionicons name="musical-note" size={10} color="#fff" />
+                        <Text style={styles.musicStickerText} numberOfLines={1}>{music.title}</Text>
+                    </View>
                 );
             })}
             {normalizedPaths.length > 0 && (
@@ -343,6 +369,19 @@ const styles = StyleSheet.create({
     },
     cardImage: { width: CARD_W, height: CARD_H - 44 },
     cardSticker: { position: "absolute" },
+    musicSticker: {
+        position: "absolute",
+        height: 24,
+        borderRadius: 8,
+        backgroundColor: "rgba(109,40,217,0.82)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.25)",
+        paddingHorizontal: 6,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+    },
+    musicStickerText: { color: "#fff", fontSize: 9, fontWeight: "700", flex: 1 },
     cardFooter: {
         height: 44, paddingHorizontal: 10, justifyContent: "center",
         backgroundColor: "rgba(0,0,0,0.5)", overflow: "hidden",
