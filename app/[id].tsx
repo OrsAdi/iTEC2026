@@ -34,8 +34,15 @@ import {
 } from "./lib/storage";
 
 const COLORS = [
-  "#EF4444", "#F97316", "#EAB308", "#22C55E",
-  "#3B82F6", "#8B5CF6", "#EC4899", "#FFFFFF", "#000000",
+  "#EF4444",
+  "#F97316",
+  "#EAB308",
+  "#22C55E",
+  "#3B82F6",
+  "#8B5CF6",
+  "#EC4899",
+  "#FFFFFF",
+  "#000000",
 ];
 const STROKE_WIDTHS = [2, 4, 8, 14];
 const GIF_OPTIONS = [
@@ -103,7 +110,7 @@ function parseAnnotationPayload(raw: unknown): AnnotationPayload {
 
 async function uploadAnnotatedImage(
   localUri: string,
-  posterId: string
+  posterId: string,
 ): Promise<string | null> {
   try {
     const { data: session } = await supabase.auth.getSession();
@@ -114,7 +121,8 @@ async function uploadAnnotatedImage(
       encoding: FileSystem.EncodingType.Base64,
     });
 
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const chars =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     const lookup: Record<string, number> = {};
     for (let i = 0; i < chars.length; i++) lookup[chars[i]] = i;
     const clean = base64.replace(/[^A-Za-z0-9+/]/g, "");
@@ -174,8 +182,12 @@ export default function DrawScreen() {
   const viewShotRef = useRef<ViewShot>(null);
   const dragStartRef = useRef<{ id: string; x: number; y: number } | null>(null);
 
-  useEffect(() => { activeColorRef.current = activeColor; }, [activeColor]);
-  useEffect(() => { activeWidthRef.current = activeWidth; }, [activeWidth]);
+  useEffect(() => {
+    activeColorRef.current = activeColor;
+  }, [activeColor]);
+  useEffect(() => {
+    activeWidthRef.current = activeWidth;
+  }, [activeWidth]);
 
   useEffect(() => {
     if (!id) return;
@@ -209,17 +221,23 @@ export default function DrawScreen() {
     .onEnd(() => {
       const completed = [...currentPoints.current];
       if (completed.length > 0) {
-        setPaths((prev) => [...prev, {
-          points: completed,
-          color: activeColorRef.current,
-          strokeWidth: activeWidthRef.current,
-        }]);
+        setPaths((prev) => [
+          ...prev,
+          {
+            points: completed,
+            color: activeColorRef.current,
+            strokeWidth: activeWidthRef.current,
+          },
+        ]);
       }
       currentPoints.current = [];
       setLivePoints([]);
     });
 
-  const handleUndo = useCallback(() => setPaths((prev) => prev.slice(0, -1)), []);
+  const handleUndo = useCallback(
+    () => setPaths((prev) => prev.slice(0, -1)),
+    [],
+  );
 
   const handleClear = useCallback(() => {
     setClearConfirmVisible(true);
@@ -337,34 +355,41 @@ export default function DrawScreen() {
 
       setSaveSuccessVisible(true);
     } catch {
-      Alert.alert("Eroare", "Nu s-a putut salva.");
+      Alert.alert("Error", "Could not save the annotations.");
     } finally {
       setSaving(false);
     }
   }, [id, paths, stickers]);
 
-  if (loading) return (
-    <View style={styles.center}>
-      <ActivityIndicator size="large" color="#007AFF" />
-    </View>
-  );
+  if (loading)
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
 
-  if (!poster) return (
-    <View style={styles.center}>
-      <Text style={{ color: "#fff" }}>Afișul nu a fost găsit.</Text>
-    </View>
-  );
+  if (!poster)
+    return (
+      <View style={styles.center}>
+        <Text style={{ color: "#fff" }}>The poster was not found.</Text>
+      </View>
+    );
 
   return (
     <GestureHandlerRootView style={styles.root}>
       <View style={styles.root}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backBtnText}>← Înapoi</Text>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+          >
+            <Text style={styles.backBtnText}>← Back</Text>
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle} numberOfLines={1}>{poster.title}</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {poster.title}
+            </Text>
             <Text style={styles.headerDate}>
               {new Date(poster.createdAt).toLocaleDateString("ro-RO")}
             </Text>
@@ -482,13 +507,20 @@ export default function DrawScreen() {
             {STROKE_WIDTHS.map((w) => (
               <TouchableOpacity
                 key={w}
-                style={[styles.strokeBtn, activeWidth === w && styles.strokeBtnActive]}
+                style={[
+                  styles.strokeBtn,
+                  activeWidth === w && styles.strokeBtnActive,
+                ]}
                 onPress={() => setActiveWidth(w)}
               >
-                <View style={{
-                  width: w * 1.8, height: w * 1.8,
-                  borderRadius: w, backgroundColor: activeColor,
-                }} />
+                <View
+                  style={{
+                    width: w * 1.8,
+                    height: w * 1.8,
+                    borderRadius: w,
+                    backgroundColor: activeColor,
+                  }}
+                />
               </TouchableOpacity>
             ))}
             <TouchableOpacity style={styles.actionBtn} onPress={handleUndo}>
@@ -644,11 +676,22 @@ export default function DrawScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#0f0f0f" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0f0f0f" },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0f0f0f",
+  },
   header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 12, paddingTop: 55, paddingBottom: 14,
-    backgroundColor: "#1a1a1a", borderBottomWidth: 1, borderBottomColor: "#2a2a2a",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingTop: 55,
+    paddingBottom: 14,
+    backgroundColor: "#1a1a1a",
+    borderBottomWidth: 1,
+    borderBottomColor: "#2a2a2a",
   },
   backBtn: { padding: 4 },
   backBtnText: { color: "#007AFF", fontSize: 14 },
@@ -657,14 +700,22 @@ const styles = StyleSheet.create({
   headerDate: { color: "#555", fontSize: 11, marginTop: 2 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   deleteBtn: {
-    width: 36, height: 36, borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 8,
     backgroundColor: "rgba(239,68,68,0.1)",
-    borderWidth: 1, borderColor: "rgba(239,68,68,0.3)",
-    alignItems: "center", justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.3)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   saveBtn: {
-    backgroundColor: "#007AFF", paddingHorizontal: 14,
-    paddingVertical: 7, borderRadius: 8, minWidth: 80, alignItems: "center",
+    backgroundColor: "#007AFF",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: "center",
   },
   modeBtn: {
     backgroundColor: "#334155", paddingHorizontal: 10,
@@ -676,23 +727,48 @@ const styles = StyleSheet.create({
   canvasContainer: { flex: 1, backgroundColor: "#000" },
   posterImage: { ...StyleSheet.absoluteFillObject },
   toolbar: {
-    backgroundColor: "#1a1a1a", paddingBottom: 16, paddingTop: 10,
-    borderTopWidth: 1, borderTopColor: "#2a2a2a",
+    backgroundColor: "#1a1a1a",
+    paddingBottom: 16,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#2a2a2a",
   },
   colorRow: { maxHeight: 44 },
   colorRowContent: { paddingHorizontal: 12, gap: 8, alignItems: "center" },
-  colorSwatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: "transparent" },
+  colorSwatch: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
   colorSwatchActive: { borderColor: "#fff", transform: [{ scale: 1.2 }] },
-  actionsScroll: { width: "100%", maxHeight: 56 },
-  strokeRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingTop: 10, gap: 8, paddingBottom: 4 },
+  strokeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    gap: 8,
+  },
   strokeBtn: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: "#2a2a2a",
-    alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#2a2a2a",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
   },
   strokeBtnActive: { borderColor: "#007AFF" },
   actionBtn: {
-    marginLeft: "auto", backgroundColor: "#374151",
-    width: 36, height: 36, borderRadius: 8, alignItems: "center", justifyContent: "center",
+    marginLeft: "auto",
+    backgroundColor: "#374151",
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
   gifBtn: { backgroundColor: "#1d4ed8", width: 52 },
   resizeBtn: { backgroundColor: "#0f766e", marginLeft: 0 },

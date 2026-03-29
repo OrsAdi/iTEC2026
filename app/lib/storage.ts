@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
-import { isExactPosterDuplicate } from "./phash_v3";
 import { isSamePoster as isSamePosterLegacy } from "./phash";
+import { isExactPosterDuplicate } from "./phash_v3";
 import { supabase } from "./supabase";
 
 export interface PosterEntry {
@@ -217,7 +217,7 @@ export async function syncPostersFromSupabase(): Promise<void> {
       const localEntry = await getPoster(poster.id);
       const remoteUpdatedAt = new Date(poster.updated_at).getTime();
 
-      // Keep local state if it is newer than remote (prevents losing recent edits in feed).
+      // Păstrează local dacă e mai nou
       if (localEntry && localEntry.updatedAt > remoteUpdatedAt) {
         ids.push(localEntry.id);
         await AsyncStorage.setItem(PREFIX + localEntry.id, JSON.stringify(localEntry));
@@ -232,7 +232,10 @@ export async function syncPostersFromSupabase(): Promise<void> {
       const entry: PosterEntry = {
         id: poster.id,
         imageUri: poster.image_url,
-        hash: poster.hash,
+        // ← FIX: păstrează hash-ul local original dacă există
+        // hash-ul trebuie să rămână cel calculat pe imaginea originală
+        // nu pe cea adnotată uploadată în Supabase
+        hash: localEntry?.hash ?? poster.hash,
         drawingData: normalizedDrawingData,
         title: poster.title,
         createdAt: new Date(poster.created_at).getTime(),
@@ -246,7 +249,6 @@ export async function syncPostersFromSupabase(): Promise<void> {
     console.log("Sync error:", e);
   }
 }
-
 export async function findDuplicate(hash: string): Promise<PosterEntry | null> {
   const all = await getAllPosters();
   return (
