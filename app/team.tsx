@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Image,
     Modal,
     ScrollView,
     StyleSheet,
@@ -12,6 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+
 import AppBackground from "./components/AppBackground";
 import BottomNav from "./components/BottomNav";
 import { supabase } from "./lib/supabase";
@@ -23,15 +25,12 @@ interface Team {
   created_by: string;
 }
 
-interface TeamMember {
-  id: string;
+interface MemberProfile {
   user_id: string;
   joined_at: string;
-  profiles: {
-    email: string;
-    full_name: string | null;
-    avatar_url: string | null;
-  };
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
 }
 
 function generateCode(): string {
@@ -40,10 +39,9 @@ function generateCode(): string {
 
 export default function TeamScreen() {
   const [team, setTeam] = useState<Team | null>(null);
-  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [members, setMembers] = useState<MemberProfile[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
   const [createModal, setCreateModal] = useState(false);
   const [joinModal, setJoinModal] = useState(false);
   const [leaveModal, setLeaveModal] = useState(false);
@@ -59,28 +57,30 @@ export default function TeamScreen() {
     try {
       const { data: session } = await supabase.auth.getSession();
       const userId = session.session?.user?.id;
+      const userEmail = session.session?.user?.email ?? "";
       if (!userId) return;
       setCurrentUserId(userId);
 
-      // Caută dacă userul e în vreo echipă
-      const { data: membership } = await supabase
+      // Caută membership
+      const { data: memberships } = await supabase
         .from("team_members")
         .select("team_id")
-        .eq("user_id", userId)
-        .single();
+        .eq("user_id", userId);
 
-      if (!membership) {
+      if (!memberships || memberships.length === 0) {
         setTeam(null);
         setMembers([]);
         setLoading(false);
         return;
       }
 
+      const teamId = memberships[0].team_id;
+
       // Încarcă echipa
       const { data: teamData } = await supabase
         .from("teams")
         .select("*")
-        .eq("id", membership.team_id)
+        .eq("id", teamId)
         .single();
 
       if (teamData) setTeam(teamData);
@@ -88,19 +88,36 @@ export default function TeamScreen() {
       // Încarcă membrii
       const { data: membersData } = await supabase
         .from("team_members")
-        .select(`
-          id,
-          user_id,
-          joined_at,
-          profiles (
-            email,
-            full_name,
-            avatar_url
-          )
-        `)
-        .eq("team_id", membership.team_id);
+        .select("user_id, joined_at")
+        .eq("team_id", teamId);
 
-      if (membersData) setMembers(membersData as any);
+      if (!membersData) { setLoading(false); return; }
+
+      // Încarcă profilurile pentru fiecare membru
+      const memberProfiles: MemberProfile[] = await Promise.all(
+        membersData.map(async (m) => {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("email, full_name, avatar_url")
+            .eq("id", m.user_id)
+            .single();
+
+          // Dacă e userul curent, folosim emailul din sesiune
+          const email = m.user_id === userId
+            ? userEmail
+            : (profile?.email ?? `user_${m.user_id.slice(0, 6)}`);
+
+          return {
+            user_id: m.user_id,
+            joined_at: m.joined_at,
+            email,
+            full_name: profile?.full_name ?? null,
+            avatar_url: profile?.avatar_url ?? null,
+          };
+        })
+      );
+
+      setMembers(memberProfiles);
     } catch (e) {
       console.log("Team load error:", e);
     } finally {
@@ -119,7 +136,6 @@ export default function TeamScreen() {
       if (!userId) return;
 
       const code = generateCode();
-
       const { data: newTeam, error } = await supabase
         .from("teams")
         .insert({ name: teamName.trim(), code, created_by: userId })
@@ -128,9 +144,7 @@ export default function TeamScreen() {
 
       if (error) throw error;
 
-      await supabase
-        .from("team_members")
-        .insert({ team_id: newTeam.id, user_id: userId });
+      await supabase.from("team_members").insert({ team_id: newTeam.id, user_id: userId });
 
       setCreateModal(false);
       setTeamName("");
@@ -150,7 +164,6 @@ export default function TeamScreen() {
       const userId = session.session?.user?.id;
       if (!userId) return;
 
-      // Caută echipa după cod
       const { data: foundTeam, error } = await supabase
         .from("teams")
         .select("*")
@@ -162,22 +175,18 @@ export default function TeamScreen() {
         return;
       }
 
-      // Verifică dacă e deja membru
       const { data: existing } = await supabase
         .from("team_members")
         .select("id")
         .eq("team_id", foundTeam.id)
-        .eq("user_id", userId)
-        .single();
+        .eq("user_id", userId);
 
-      if (existing) {
+      if (existing && existing.length > 0) {
         Alert.alert("INFO", "Ești deja în această echipă.");
         return;
       }
 
-      await supabase
-        .from("team_members")
-        .insert({ team_id: foundTeam.id, user_id: userId });
+      await supabase.from("team_members").insert({ team_id: foundTeam.id, user_id: userId });
 
       setJoinModal(false);
       setJoinCode("");
@@ -193,11 +202,8 @@ export default function TeamScreen() {
       const userId = session.session?.user?.id;
       if (!userId || !team) return;
 
-      await supabase
-        .from("team_members")
-        .delete()
-        .eq("team_id", team.id)
-        .eq("user_id", userId);
+      await supabase.from("team_members").delete()
+        .eq("team_id", team.id).eq("user_id", userId);
 
       setLeaveModal(false);
       setTeam(null);
@@ -210,7 +216,6 @@ export default function TeamScreen() {
   return (
     <AppBackground>
       <View style={styles.container}>
-        {/* Header */}
         <BlurView intensity={80} tint="dark" style={styles.header}>
           <View style={styles.logoBox}>
             <Text style={styles.logoTextMain}>GLITCH_</Text>
@@ -225,7 +230,6 @@ export default function TeamScreen() {
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
             {team ? (
               <>
                 {/* Team card */}
@@ -242,7 +246,6 @@ export default function TeamScreen() {
                     </View>
                   </View>
 
-                  {/* Cod invitație */}
                   <View style={styles.codeBox}>
                     <Text style={styles.codeLabel}>COD INVITAȚIE</Text>
                     <Text style={styles.codeValue}>{team.code}</Text>
@@ -251,10 +254,7 @@ export default function TeamScreen() {
                     </Text>
                   </View>
 
-                  <TouchableOpacity
-                    style={styles.leaveBtn}
-                    onPress={() => setLeaveModal(true)}
-                  >
+                  <TouchableOpacity style={styles.leaveBtn} onPress={() => setLeaveModal(true)}>
                     <Ionicons name="exit-outline" size={16} color="#ef4444" />
                     <Text style={styles.leaveBtnText}>PĂRĂSEȘTE ECHIPA</Text>
                   </TouchableOpacity>
@@ -262,47 +262,58 @@ export default function TeamScreen() {
 
                 {/* Members */}
                 <BlurView intensity={60} tint="dark" style={styles.listCard}>
-                  <Text style={styles.listTitle}>MEMBERS_LIST</Text>
-                  {members.map((member, index) => (
-                    <View key={member.id}>
-                      <View style={styles.memberRow}>
-                        <View style={[
-                          styles.memberAvatar,
-                          member.user_id === currentUserId && styles.memberAvatarSelf,
-                        ]}>
-                          <Ionicons
-                            name="person"
-                            size={20}
-                            color={member.user_id === currentUserId ? "#007AFF" : "#555"}
-                          />
-                        </View>
-                        <View style={styles.memberInfo}>
-                          <View style={styles.memberNameRow}>
+                  <Text style={styles.listTitle}>
+                    MEMBERS_LIST ({members.length})
+                  </Text>
+                  {members.map((member, index) => {
+                    const isSelf = member.user_id === currentUserId;
+                    const displayName = member.full_name || member.email || `User ${member.user_id.slice(0, 6)}`;
+
+                    return (
+                      <View key={member.user_id}>
+                        <View style={styles.memberRow}>
+                          {/* Avatar */}
+                          {member.avatar_url ? (
+                            <Image
+                              source={{ uri: member.avatar_url }}
+                              style={[styles.memberAvatarImg, isSelf && styles.memberAvatarSelf]}
+                            />
+                          ) : (
+                            <View style={[styles.memberAvatar, isSelf && styles.memberAvatarSelf]}>
+                              <Ionicons name="person" size={20} color={isSelf ? "#007AFF" : "#555"} />
+                            </View>
+                          )}
+
+                          {/* Info */}
+                          <View style={styles.memberInfo}>
+                            <View style={styles.memberNameRow}>
+                              <Text style={styles.memberName} numberOfLines={1}>
+                                {displayName}
+                              </Text>
+                              {isSelf && (
+                                <View style={styles.youBadge}>
+                                  <Text style={styles.youBadgeText}>YOU</Text>
+                                </View>
+                              )}
+                            </View>
                             <Text style={styles.memberEmail} numberOfLines={1}>
-                              {(member.profiles as any)?.full_name ||
-                               (member.profiles as any)?.email ||
-                               "Unknown"}
+                              {member.email}
                             </Text>
-                            {member.user_id === currentUserId && (
-                              <View style={styles.youBadge}>
-                                <Text style={styles.youBadgeText}>YOU</Text>
-                              </View>
-                            )}
+                            <Text style={styles.memberDate}>
+                              Joined {new Date(member.joined_at).toLocaleDateString("ro-RO")}
+                            </Text>
                           </View>
-                          <Text style={styles.memberDate}>
-                            Joined {new Date(member.joined_at).toLocaleDateString("ro-RO")}
-                          </Text>
+
+                          <View style={styles.statusDot} />
                         </View>
-                        <View style={styles.statusDot} />
+                        {index < members.length - 1 && <View style={styles.divider} />}
                       </View>
-                      {index < members.length - 1 && <View style={styles.divider} />}
-                    </View>
-                  ))}
+                    );
+                  })}
                 </BlurView>
               </>
             ) : (
               <>
-                {/* No team */}
                 <BlurView intensity={60} tint="dark" style={styles.noTeamCard}>
                   <Text style={styles.noTeamIcon}>👥</Text>
                   <Text style={styles.noTeamTitle}>NO_TEAM_FOUND</Text>
@@ -311,20 +322,14 @@ export default function TeamScreen() {
                   </Text>
                 </BlurView>
 
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={() => setCreateModal(true)}
-                >
+                <TouchableOpacity style={styles.actionButton} onPress={() => setCreateModal(true)}>
                   <BlurView intensity={60} tint="dark" style={styles.actionButtonInner}>
                     <Ionicons name="add-circle-outline" size={22} color="#007AFF" />
                     <Text style={styles.actionButtonText}>CREEAZĂ ECHIPĂ</Text>
                   </BlurView>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[styles.actionButton, { marginTop: 12 }]}
-                  onPress={() => setJoinModal(true)}
-                >
+                <TouchableOpacity style={[styles.actionButton, { marginTop: 12 }]} onPress={() => setJoinModal(true)}>
                   <BlurView intensity={60} tint="dark" style={styles.actionButtonInner}>
                     <Ionicons name="enter-outline" size={22} color="#007AFF" />
                     <Text style={styles.actionButtonText}>ALĂTURĂ-TE CU COD</Text>
@@ -340,7 +345,7 @@ export default function TeamScreen() {
         <BottomNav activeTab="team" />
       </View>
 
-      {/* Modal Creare Echipă */}
+      {/* Modal Creare */}
       <Modal visible={createModal} animationType="fade" transparent>
         <View style={styles.modalOverlay}>
           <BlurView intensity={95} tint="dark" style={styles.modalCard}>
@@ -361,10 +366,7 @@ export default function TeamScreen() {
               autoCapitalize="characters"
             />
             <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={() => { setCreateModal(false); setTeamName(""); }}
-              >
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setCreateModal(false); setTeamName(""); }}>
                 <Text style={styles.modalCancelText}>CANCEL</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalConfirmBtn} onPress={handleCreateTeam}>
@@ -375,7 +377,7 @@ export default function TeamScreen() {
         </View>
       </Modal>
 
-      {/* Modal Join Echipă */}
+      {/* Modal Join */}
       <Modal visible={joinModal} animationType="fade" transparent>
         <View style={styles.modalOverlay}>
           <BlurView intensity={95} tint="dark" style={styles.modalCard}>
@@ -396,10 +398,7 @@ export default function TeamScreen() {
               autoCapitalize="characters"
             />
             <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={() => { setJoinModal(false); setJoinCode(""); }}
-              >
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setJoinModal(false); setJoinCode(""); }}>
                 <Text style={styles.modalCancelText}>CANCEL</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalConfirmBtn} onPress={handleJoinTeam}>
@@ -422,17 +421,12 @@ export default function TeamScreen() {
               <Ionicons name="exit" size={24} color="#ef4444" />
             </View>
             <Text style={styles.modalTitle}>CONFIRMI?</Text>
-            <Text style={styles.modalMessage}>
-              Vrei să părăsești echipa "{team?.name}"?
-            </Text>
+            <Text style={styles.modalMessage}>Vrei să părăsești echipa "{team?.name}"?</Text>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setLeaveModal(false)}>
                 <Text style={styles.modalCancelText}>CANCEL</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalConfirmBtn, { backgroundColor: "#ef4444" }]}
-                onPress={handleLeaveTeam}
-              >
+              <TouchableOpacity style={[styles.modalConfirmBtn, { backgroundColor: "#ef4444" }]} onPress={handleLeaveTeam}>
                 <Text style={styles.modalConfirmText}>LEAVE</Text>
               </TouchableOpacity>
             </View>
@@ -460,8 +454,6 @@ const styles = StyleSheet.create({
   logoTextSub: { color: "#007AFF", fontSize: 20, fontWeight: "bold" },
   headerSub: { color: "#555", fontSize: 11, letterSpacing: 3, marginTop: 4 },
   scrollContent: { padding: 16, paddingBottom: 100 },
-
-  // Team card
   teamCard: {
     borderRadius: 20, padding: 20, marginBottom: 16,
     borderWidth: 1, borderColor: "rgba(0,122,255,0.2)",
@@ -477,21 +469,14 @@ const styles = StyleSheet.create({
   teamCardInfo: { flex: 1 },
   teamName: { color: "#fff", fontSize: 18, fontWeight: "bold", letterSpacing: 1 },
   teamMemberCount: { color: "#555", fontSize: 12, marginTop: 2 },
-
-  // Code box
   codeBox: {
     backgroundColor: "rgba(0,122,255,0.08)",
     borderRadius: 14, padding: 16, alignItems: "center",
-    borderWidth: 1, borderColor: "rgba(0,122,255,0.2)",
-    marginBottom: 16,
+    borderWidth: 1, borderColor: "rgba(0,122,255,0.2)", marginBottom: 16,
   },
   codeLabel: { color: "#555", fontSize: 10, letterSpacing: 2, marginBottom: 8 },
-  codeValue: {
-    color: "#007AFF", fontSize: 32, fontWeight: "bold",
-    letterSpacing: 8, marginBottom: 8,
-  },
+  codeValue: { color: "#007AFF", fontSize: 32, fontWeight: "bold", letterSpacing: 8, marginBottom: 8 },
   codeHint: { color: "#444", fontSize: 11, textAlign: "center" },
-
   leaveBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 8, paddingVertical: 10,
@@ -499,8 +484,6 @@ const styles = StyleSheet.create({
     borderRadius: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)",
   },
   leaveBtnText: { color: "#ef4444", fontSize: 12, fontWeight: "bold", letterSpacing: 1 },
-
-  // Members list
   listCard: {
     borderRadius: 20, padding: 20, marginBottom: 16,
     borderWidth: 1, borderColor: "rgba(0,122,255,0.2)",
@@ -509,16 +492,21 @@ const styles = StyleSheet.create({
   listTitle: { color: "#007AFF", fontSize: 11, fontWeight: "bold", letterSpacing: 2, marginBottom: 16 },
   memberRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, gap: 12 },
   memberAvatar: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
     alignItems: "center", justifyContent: "center",
   },
-  memberAvatarSelf: { backgroundColor: "rgba(0,122,255,0.1)", borderColor: "#007AFF" },
+  memberAvatarImg: {
+    width: 44, height: 44, borderRadius: 22,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+  },
+  memberAvatarSelf: { borderColor: "#007AFF", borderWidth: 2 },
   memberInfo: { flex: 1 },
-  memberNameRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 3 },
-  memberEmail: { color: "#fff", fontSize: 13, fontWeight: "600", flex: 1 },
-  memberDate: { color: "#555", fontSize: 11 },
+  memberNameRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 },
+  memberName: { color: "#fff", fontSize: 13, fontWeight: "700", flex: 1 },
+  memberEmail: { color: "#555", fontSize: 11, marginBottom: 2 },
+  memberDate: { color: "#444", fontSize: 10 },
   youBadge: {
     backgroundColor: "rgba(0,122,255,0.2)",
     borderWidth: 1, borderColor: "#007AFF",
@@ -527,8 +515,6 @@ const styles = StyleSheet.create({
   youBadgeText: { color: "#007AFF", fontSize: 9, fontWeight: "bold", letterSpacing: 1 },
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#00FF78" },
   divider: { height: 1, backgroundColor: "rgba(255,255,255,0.06)" },
-
-  // No team
   noTeamCard: {
     borderRadius: 20, padding: 32, alignItems: "center", marginBottom: 16,
     borderWidth: 1, borderColor: "rgba(0,122,255,0.2)",
@@ -537,8 +523,6 @@ const styles = StyleSheet.create({
   noTeamIcon: { fontSize: 48, marginBottom: 12 },
   noTeamTitle: { color: "#fff", fontSize: 18, fontWeight: "bold", letterSpacing: 2, marginBottom: 8 },
   noTeamSubtitle: { color: "#555", fontSize: 13, textAlign: "center", lineHeight: 20 },
-
-  // Action buttons
   actionButton: {
     borderRadius: 16, overflow: "hidden",
     borderWidth: 1, borderColor: "rgba(0,122,255,0.3)",
@@ -548,10 +532,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18, gap: 10, backgroundColor: "rgba(0,122,255,0.08)",
   },
   actionButtonText: { color: "#007AFF", fontSize: 14, fontWeight: "bold", letterSpacing: 2 },
-
   version: { color: "#333", fontSize: 10, textAlign: "center", letterSpacing: 1, marginTop: 16 },
-
-  // Modal
   modalOverlay: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.85)",
     justifyContent: "center", alignItems: "center",

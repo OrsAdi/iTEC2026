@@ -61,17 +61,6 @@ function pathsToD(points: { x: number; y: number }[]): string {
     return `M ${first.x} ${first.y} ` + rest.map((p) => `L ${p.x} ${p.y}`).join(" ");
 }
 
-function parseDrawPaths(raw: unknown): DrawPath[] {
-    if (Array.isArray(raw)) return raw as DrawPath[];
-    if (typeof raw !== "string") return [];
-    try {
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? (parsed as DrawPath[]) : [];
-    } catch {
-        return [];
-    }
-}
-
 function parseAnnotationPayload(raw: unknown): AnnotationPayload {
     const empty: AnnotationPayload = { paths: [], stickers: [], musicStickers: [] };
     if (Array.isArray(raw)) return { paths: raw as DrawPath[], stickers: [], musicStickers: [] };
@@ -98,40 +87,29 @@ function normalizePathsForCard(
     targetH: number
 ): DrawPath[] {
     if (paths.length === 0) return [];
-
     const points = paths.flatMap((p) => p.points);
     if (points.length === 0) return [];
 
-    let minX = Number.POSITIVE_INFINITY;
-    let minY = Number.POSITIVE_INFINITY;
-    let maxX = Number.NEGATIVE_INFINITY;
-    let maxY = Number.NEGATIVE_INFINITY;
-
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const pt of points) {
-        if (!Number.isFinite(pt.x) || !Number.isFinite(pt.y)) continue;
+        if (!isFinite(pt.x) || !isFinite(pt.y)) continue;
         if (pt.x < minX) minX = pt.x;
         if (pt.y < minY) minY = pt.y;
         if (pt.x > maxX) maxX = pt.x;
         if (pt.y > maxY) maxY = pt.y;
     }
-
-    if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
-        return paths;
-    }
+    if (!isFinite(minX)) return paths;
 
     const boxW = Math.max(1, maxX - minX);
     const boxH = Math.max(1, maxY - minY);
     const pad = 8;
-    const fitW = Math.max(1, targetW - pad * 2);
-    const fitH = Math.max(1, targetH - pad * 2);
-    const scale = Math.min(fitW / boxW, fitH / boxH);
+    const scale = Math.min((targetW - pad * 2) / boxW, (targetH - pad * 2) / boxH);
     const offsetX = (targetW - boxW * scale) / 2;
     const offsetY = (targetH - boxH * scale) / 2;
-    const strokeScale = Math.max(0.8, Math.min(2.2, scale * 0.3));
 
     return paths.map((path) => ({
         ...path,
-        strokeWidth: path.strokeWidth * strokeScale,
+        strokeWidth: path.strokeWidth * Math.max(0.8, Math.min(2.2, scale * 0.3)),
         points: path.points.map((pt) => ({
             x: (pt.x - minX) * scale + offsetX,
             y: (pt.y - minY) * scale + offsetY,
@@ -139,8 +117,11 @@ function normalizePathsForCard(
     }));
 }
 
-function PosterCard({ item, onPress, onLongPress }: {
-    item: PosterEntry; onPress: () => void; onLongPress: () => void;
+function PosterCard({ item, onPress, onLongPress, currentUserId }: {
+    item: PosterEntry;
+    onPress: () => void;
+    onLongPress: () => void;
+    currentUserId: string | null;
 }) {
     const payload = parseAnnotationPayload(item.drawingData as unknown);
     const paths = payload.paths;
@@ -150,8 +131,14 @@ function PosterCard({ item, onPress, onLongPress }: {
     const totalAnnotations = normalizedPaths.length + stickers.length + musicStickers.length;
 
     return (
-        <TouchableOpacity style={styles.card} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
+        <TouchableOpacity
+            style={[styles.card, isTeam && styles.cardTeam]}
+            onPress={onPress}
+            onLongPress={onLongPress}
+            activeOpacity={0.85}
+        >
             <Image source={{ uri: item.imageUri }} style={styles.cardImage} resizeMode="cover" />
+
             {stickers.map((sticker) => {
                 const sizePx = Math.max(24, Math.min(CARD_W * 0.6, sticker.size * CARD_W));
                 const x = Math.max(0, Math.min(CARD_W - sizePx, sticker.x * CARD_W - sizePx / 2));
@@ -170,7 +157,7 @@ function PosterCard({ item, onPress, onLongPress }: {
                 const x = Math.max(0, Math.min(CARD_W - widthPx, music.x * CARD_W - widthPx / 2));
                 const y = Math.max(0, Math.min(CARD_IMAGE_H - 24, music.y * CARD_IMAGE_H - 12));
                 return (
-                    <View key={music.id} style={[styles.musicSticker, { left: x, top: y, width: widthPx }]}> 
+                    <View key={music.id} style={[styles.musicSticker, { left: x, top: y, width: widthPx }]}>
                         <Ionicons name="musical-note" size={10} color="#fff" />
                         <Text style={styles.musicStickerText} numberOfLines={1}>{music.title}</Text>
                     </View>
@@ -187,14 +174,27 @@ function PosterCard({ item, onPress, onLongPress }: {
                     </Svg>
                 </View>
             )}
+
+            {/* Badge adnotări */}
             {totalAnnotations > 0 && (
                 <View style={styles.badge}>
                     <Text style={styles.badgeText}>✏️ {totalAnnotations}</Text>
                 </View>
             )}
+
+            {/* Badge echipă */}
+            {isTeam && (
+                <View style={styles.teamBadge}>
+                    <Text style={styles.teamBadgeText}>👥</Text>
+                </View>
+            )}
+
             <BlurView intensity={60} tint="dark" style={styles.cardFooter}>
                 <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-                <Text style={styles.cardDate}>{new Date(item.createdAt).toLocaleDateString("ro-RO")}</Text>
+                <Text style={styles.cardDate}>
+                    {new Date(item.createdAt).toLocaleDateString("ro-RO")}
+                    {isTeam ? " · echipă" : ""}
+                </Text>
             </BlurView>
         </TouchableOpacity>
     );
@@ -203,16 +203,23 @@ function PosterCard({ item, onPress, onLongPress }: {
 export default function FeedScreen() {
     const [posters, setPosters] = useState<PosterEntry[]>([]);
     const [loading, setLoading] = useState(true);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [deleteModal, setDeleteModal] = useState<{ visible: boolean; id: string; title: string }>({
-        visible: false,
-        id: "",
-        title: "",
+        visible: false, id: "", title: "",
     });
     const router = useRouter();
 
     useFocusEffect(
         useCallback(() => {
             setLoading(true);
+
+            // Obține userId curent
+            import("./lib/supabase").then(({ supabase }) => {
+                supabase.auth.getSession().then(({ data }) => {
+                    setCurrentUserId(data.session?.user?.id ?? null);
+                });
+            });
+
             syncPostersFromSupabase().finally(() => {
                 getAllPosters().then((all) => {
                     const sorted = [...all].sort((a, b) => {
@@ -239,14 +246,15 @@ export default function FeedScreen() {
 
     const confirmDelete = useCallback(async () => {
         const posterId = deleteModal.id;
-        if (!posterId) {
-            closeDeleteModal();
-            return;
-        }
+        if (!posterId) { closeDeleteModal(); return; }
         await deletePoster(posterId);
         setPosters((prev) => prev.filter((p) => p.id !== posterId));
         closeDeleteModal();
     }, [deleteModal.id, closeDeleteModal]);
+
+    // Număr afișe proprii vs echipă
+    const myPosters = posters.filter(p => !p.isTeamPoster || p.ownerId === currentUserId).length;
+    const teamPosters = posters.filter(p => p.isTeamPoster && p.ownerId !== currentUserId).length;
 
     return (
         <AppBackground>
@@ -287,13 +295,15 @@ export default function FeedScreen() {
                         ListHeaderComponent={
                             <View style={styles.listHeader}>
                                 <Text style={styles.listHeaderText}>
-                                    {posters.length} TARGET{posters.length !== 1 ? "S" : ""}_TAGGED
+                                    {myPosters} MY_TARGET{myPosters !== 1 ? "S" : ""}
+                                    {teamPosters > 0 ? `  ·  👥 ${teamPosters} TEAM` : ""}
                                 </Text>
                             </View>
                         }
                         renderItem={({ item }) => (
                             <PosterCard
                                 item={item}
+                                currentUserId={currentUserId}
                                 onPress={() => router.push({ pathname: "/[id]", params: { id: item.id } })}
                                 onLongPress={() => handleDeleteRequest(item.id, item.title)}
                             />
@@ -301,6 +311,7 @@ export default function FeedScreen() {
                     />
                 )}
 
+                {/* Modal delete */}
                 <Modal visible={deleteModal.visible} animationType="fade" transparent>
                     <View style={styles.modalOverlay}>
                         <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
@@ -367,6 +378,9 @@ const styles = StyleSheet.create({
         width: CARD_W, height: CARD_H, borderRadius: 16, overflow: "hidden",
         borderWidth: 1, borderColor: "rgba(0,122,255,0.2)", backgroundColor: "#111",
     },
+    cardTeam: {
+        borderColor: "rgba(0,200,100,0.4)",
+    },
     cardImage: { width: CARD_W, height: CARD_H - 44 },
     cardSticker: { position: "absolute" },
     musicSticker: {
@@ -394,6 +408,12 @@ const styles = StyleSheet.create({
         borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2,
     },
     badgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+    teamBadge: {
+        position: "absolute", top: 8, left: 8,
+        backgroundColor: "rgba(0,180,80,0.85)",
+        borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2,
+    },
+    teamBadgeText: { fontSize: 12 },
     modalOverlay: {
         position: "absolute", top: 0, right: 0, bottom: 0, left: 0,
         backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", alignItems: "center",
