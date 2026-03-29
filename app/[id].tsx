@@ -190,6 +190,10 @@ export default function DrawScreen() {
     });
   }, [id]);
 
+  useEffect(() => {
+    if (stickers.length > 0) setIsStickerMode(true);
+  }, [stickers.length]);
+
   const panGesture = Gesture.Pan()
     .runOnJS(true)
     .enabled(!isStickerMode)
@@ -248,6 +252,30 @@ export default function DrawScreen() {
     setStickers((prev) => prev.map((s) => (s.id === idToUpdate ? { ...s, ...update } : s)));
   }, []);
 
+  const moveStickerDrag = useCallback((stickerId: string, dx: number, dy: number) => {
+    const drag = dragStartRef.current;
+    if (!drag || drag.id !== stickerId) return;
+
+    const dragGain = 1.9;
+    const dxNorm = (dx / Math.max(1, canvasSize.width)) * dragGain;
+    const dyNorm = (dy / Math.max(1, canvasSize.height)) * dragGain;
+
+    updateSticker(stickerId, {
+      x: Math.max(-0.8, Math.min(1.8, drag.x + dxNorm)),
+      y: Math.max(-0.8, Math.min(1.8, drag.y + dyNorm)),
+    });
+  }, [canvasSize.height, canvasSize.width, updateSticker]);
+
+  const beginStickerDrag = useCallback((sticker: GifSticker) => {
+    setSelectedStickerId(sticker.id);
+    setIsStickerMode(true);
+    dragStartRef.current = { id: sticker.id, x: sticker.x, y: sticker.y };
+  }, []);
+
+  const endStickerDrag = useCallback(() => {
+    dragStartRef.current = null;
+  }, []);
+
   const resizeSelectedSticker = useCallback((delta: number) => {
     if (!selectedStickerId) return;
     setStickers((prev) =>
@@ -264,29 +292,13 @@ export default function DrawScreen() {
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: () => {
-          setSelectedStickerId(sticker.id);
-          setIsStickerMode(true);
-          dragStartRef.current = { id: sticker.id, x: sticker.x, y: sticker.y };
-        },
-        onPanResponderMove: (_evt, gestureState) => {
-          const drag = dragStartRef.current;
-          if (!drag || drag.id !== sticker.id) return;
-          const dxNorm = gestureState.dx / Math.max(1, canvasSize.width);
-          const dyNorm = gestureState.dy / Math.max(1, canvasSize.height);
-          updateSticker(sticker.id, {
-            x: Math.max(0, Math.min(1, drag.x + dxNorm)),
-            y: Math.max(0, Math.min(1, drag.y + dyNorm)),
-          });
-        },
-        onPanResponderRelease: () => {
-          dragStartRef.current = null;
-        },
-        onPanResponderTerminate: () => {
-          dragStartRef.current = null;
-        },
+        onPanResponderGrant: () => beginStickerDrag(sticker),
+        onPanResponderMove: (_evt, gestureState) => moveStickerDrag(sticker.id, gestureState.dx, gestureState.dy),
+        onPanResponderRelease: endStickerDrag,
+        onPanResponderTerminate: endStickerDrag,
+        onPanResponderTerminationRequest: () => false,
       }).panHandlers,
-    [canvasSize.height, canvasSize.width, updateSticker]
+    [beginStickerDrag, endStickerDrag, moveStickerDrag]
   );
 
   const handleDelete = useCallback(() => {
@@ -396,26 +408,26 @@ export default function DrawScreen() {
               style={styles.posterImage}
               resizeMode="contain"
             />
-            {stickers.map((sticker) => (
-              <View
-                key={sticker.id}
-                style={[
-                  styles.gifSticker,
-                  selectedStickerId === sticker.id && styles.gifStickerSelected,
-                  {
-                    width: `${Math.max(8, Math.min(60, sticker.size * 100))}%`,
-                    height: undefined,
-                    aspectRatio: 1,
-                    left: `${Math.max(0, Math.min(100, sticker.x * 100))}%`,
-                    top: `${Math.max(0, Math.min(100, sticker.y * 100))}%`,
-                  },
-                ]}
-                {...getStickerPanHandlers(sticker)}
-              >
-                <Image source={{ uri: sticker.uri }} style={styles.gifStickerImage} resizeMode="contain" />
-              </View>
-            ))}
-            <Svg style={StyleSheet.absoluteFill}>
+            {stickers.map((sticker) => {
+              const sizePx = Math.max(42, Math.min(canvasSize.width * 0.7, sticker.size * canvasSize.width));
+              const left = sticker.x * canvasSize.width - sizePx / 2;
+              const top = sticker.y * canvasSize.height - sizePx / 2;
+
+              return (
+                <View
+                  key={sticker.id}
+                  style={[
+                    styles.gifSticker,
+                    selectedStickerId === sticker.id && styles.gifStickerSelected,
+                    { width: sizePx, height: sizePx, left, top },
+                  ]}
+                  {...getStickerPanHandlers(sticker)}
+                >
+                  <Image source={{ uri: sticker.uri }} style={styles.gifStickerImage} resizeMode="contain" />
+                </View>
+              );
+            })}
+            <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
               {paths.map((path, idx) => (
                 <Path
                   key={idx}
@@ -461,7 +473,12 @@ export default function DrawScreen() {
               />
             ))}
           </ScrollView>
-          <View style={styles.strokeRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator
+            style={styles.actionsScroll}
+            contentContainerStyle={styles.strokeRow}
+          >
             {STROKE_WIDTHS.map((w) => (
               <TouchableOpacity
                 key={w}
@@ -499,7 +516,7 @@ export default function DrawScreen() {
                 </TouchableOpacity>
               </>
             )}
-          </View>
+          </ScrollView>
         </View>
 
         <Modal visible={gifPickerVisible} animationType="fade" transparent>
@@ -666,7 +683,8 @@ const styles = StyleSheet.create({
   colorRowContent: { paddingHorizontal: 12, gap: 8, alignItems: "center" },
   colorSwatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: "transparent" },
   colorSwatchActive: { borderColor: "#fff", transform: [{ scale: 1.2 }] },
-  strokeRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingTop: 10, gap: 8 },
+  actionsScroll: { width: "100%", maxHeight: 56 },
+  strokeRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingTop: 10, gap: 8, paddingBottom: 4 },
   strokeBtn: {
     width: 36, height: 36, borderRadius: 18, backgroundColor: "#2a2a2a",
     alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent",
@@ -679,7 +697,7 @@ const styles = StyleSheet.create({
   gifBtn: { backgroundColor: "#1d4ed8", width: 52 },
   resizeBtn: { backgroundColor: "#0f766e", marginLeft: 0 },
   actionBtnText: { fontSize: 18 },
-  gifSticker: { position: "absolute", transform: [{ translateX: -40 }, { translateY: -40 }], borderRadius: 8 },
+  gifSticker: { position: "absolute", borderRadius: 8, zIndex: 20 },
   gifStickerSelected: { borderWidth: 2, borderColor: "#22d3ee" },
   gifStickerImage: { width: "100%", height: "100%" },
   gifScroll: { width: "100%", maxHeight: 82, marginBottom: 12 },
