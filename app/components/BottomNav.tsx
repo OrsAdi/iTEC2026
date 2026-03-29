@@ -3,6 +3,7 @@ import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { supabase } from "../lib/supabase";
 
 export default function BottomNav({ activeTab = "" }: { activeTab?: string }) {
   const router = useRouter();
@@ -12,8 +13,9 @@ export default function BottomNav({ activeTab = "" }: { activeTab?: string }) {
     setIsLogoutModalVisible(true);
   };
 
-  const confirmLogout = () => {
+  const confirmLogout = async () => {
     setIsLogoutModalVisible(false);
+    await supabase.auth.signOut();
     router.replace("/");
   };
 
@@ -22,15 +24,9 @@ export default function BottomNav({ activeTab = "" }: { activeTab?: string }) {
     return activeTab === key ? "#007AFF" : "#555";
   };
 
-  // 2 tab-uri stânga, buton scan centru, 2 tab-uri dreapta — perfect simetric
   const leftTabs = [
     { key: "feed", icon: "home-outline", label: "Feed", route: "/feed" },
-    {
-      key: "profile",
-      icon: "person-outline",
-      label: "Profil",
-      route: "/profile",
-    },
+    { key: "profile", icon: "person-outline", label: "Profil", route: "/profile" },
   ];
 
   const rightTabs = [
@@ -40,13 +36,9 @@ export default function BottomNav({ activeTab = "" }: { activeTab?: string }) {
 
   return (
     <View style={styles.wrapper}>
-      {/* Blur background */}
       <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
-
-      {/* Border top */}
       <View style={styles.borderTop} />
 
-      {/* Conținut navbar */}
       <View style={styles.content}>
         {/* Stânga */}
         <View style={styles.side}>
@@ -57,19 +49,12 @@ export default function BottomNav({ activeTab = "" }: { activeTab?: string }) {
               activeOpacity={0.7}
               onPress={() => router.push(t.route as any)}
             >
-              <Ionicons
-                name={t.icon as any}
-                size={22}
-                color={getColor(t.key)}
-              />
-              <Text style={[styles.label, { color: getColor(t.key) }]}>
-                {t.label}
-              </Text>
+              <Ionicons name={t.icon as any} size={22} color={getColor(t.key)} />
+              <Text style={[styles.label, { color: getColor(t.key) }]}>{t.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Centru — spațiu pentru butonul scan care iese deasupra */}
         <View style={styles.centerSpace} />
 
         {/* Dreapta */}
@@ -84,20 +69,14 @@ export default function BottomNav({ activeTab = "" }: { activeTab?: string }) {
                 else router.push(t.route as any);
               }}
             >
-              <Ionicons
-                name={t.icon as any}
-                size={22}
-                color={getColor(t.key)}
-              />
-              <Text style={[styles.label, { color: getColor(t.key) }]}>
-                {t.label}
-              </Text>
+              <Ionicons name={t.icon as any} size={22} color={getColor(t.key)} />
+              <Text style={[styles.label, { color: getColor(t.key) }]}>{t.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
       </View>
 
-      {/* Buton Scan — poziționat absolut, iese deasupra barei */}
+      {/* Buton Scan */}
       <TouchableOpacity
         style={styles.scanBtn}
         activeOpacity={0.85}
@@ -109,23 +88,21 @@ export default function BottomNav({ activeTab = "" }: { activeTab?: string }) {
         <Text style={styles.scanLabel}>Scan</Text>
       </TouchableOpacity>
 
-      <Modal visible={isLogoutModalVisible} animationType="fade" transparent={true}>
+      {/* Modal logout */}
+      <Modal visible={isLogoutModalVisible} animationType="fade" transparent>
         <View style={styles.modalOverlay}>
           <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
             <View style={styles.alertHeaderBox}>
               <Text style={styles.alertHeaderTextMain}>SESSION</Text>
-              <Text style={styles.alertHeaderTextSub}>STATUS</Text>
+              <Text style={styles.alertHeaderTextSub}> STATUS</Text>
             </View>
-
             <View style={styles.successIconCircle}>
               <Text style={styles.successIconText}>!</Text>
             </View>
-
             <Text style={styles.alertTitle}>LOGOUT CONFIRMATION</Text>
             <Text style={styles.alertMessage}>
               Are you sure you want to exit the current session?
             </Text>
-
             <View style={styles.alertActions}>
               <TouchableOpacity
                 style={styles.alertCancelButton}
@@ -133,7 +110,6 @@ export default function BottomNav({ activeTab = "" }: { activeTab?: string }) {
               >
                 <Text style={styles.alertCancelButtonText}>CANCEL</Text>
               </TouchableOpacity>
-
               <TouchableOpacity style={styles.alertButton} onPress={confirmLogout}>
                 <Text style={styles.alertButtonText}>LOGOUT</Text>
               </TouchableOpacity>
@@ -150,158 +126,67 @@ const SCAN_SIZE = 60;
 
 const styles = StyleSheet.create({
   wrapper: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: NAVBAR_H,
+    position: "absolute", left: 0, right: 0, bottom: 0, height: NAVBAR_H,
   },
   borderTop: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: "rgba(0,122,255,0.3)",
-    zIndex: 2,
+    position: "absolute", top: 0, left: 0, right: 0, height: 1,
+    backgroundColor: "rgba(0,122,255,0.3)", zIndex: 2,
   },
   content: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingBottom: 8,
+    flex: 1, flexDirection: "row", alignItems: "center", paddingBottom: 8,
   },
   side: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
+    flex: 1, flexDirection: "row", justifyContent: "space-around", alignItems: "center",
   },
-  centerSpace: {
-    width: SCAN_SIZE + 16,
-  },
-  tab: {
-    alignItems: "center",
-    justifyContent: "center",
-    flex: 1,
-    paddingTop: 8,
-  },
-  label: {
-    fontSize: 9,
-    marginTop: 3,
-    letterSpacing: 0.5,
-  },
-
-  // Scan button — iese deasupra barei
+  centerSpace: { width: SCAN_SIZE + 16 },
+  tab: { alignItems: "center", justifyContent: "center", flex: 1, paddingTop: 8 },
+  label: { fontSize: 9, marginTop: 3, letterSpacing: 0.5 },
   scanBtn: {
-    position: "absolute",
-    top: -(SCAN_SIZE / 2) - 4,
-    alignSelf: "center",
-    alignItems: "center",
-    zIndex: 10,
+    position: "absolute", top: -(SCAN_SIZE / 2) - 4,
+    alignSelf: "center", alignItems: "center", zIndex: 10,
   },
   scanCircle: {
-    width: SCAN_SIZE,
-    height: SCAN_SIZE,
-    borderRadius: SCAN_SIZE / 2,
-    backgroundColor: "#007AFF",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: "rgba(0,122,255,0.5)",
-    shadowColor: "#007AFF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 10,
+    width: SCAN_SIZE, height: SCAN_SIZE, borderRadius: SCAN_SIZE / 2,
+    backgroundColor: "#007AFF", alignItems: "center", justifyContent: "center",
+    borderWidth: 3, borderColor: "rgba(0,122,255,0.5)",
+    shadowColor: "#007AFF", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4, shadowRadius: 8, elevation: 10,
   },
-  scanLabel: {
-    color: "#007AFF",
-    fontSize: 9,
-    marginTop: 4,
-    letterSpacing: 0.5,
-  },
+  scanLabel: { color: "#007AFF", fontSize: 9, marginTop: 4, letterSpacing: 0.5 },
   modalOverlay: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    backgroundColor: "rgba(0,0,0,0.85)",
-    justifyContent: "center",
-    alignItems: "center",
+    position: "absolute", top: 0, right: 0, bottom: 0, left: 0,
+    backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", alignItems: "center",
   },
   customAlertCard: {
-    width: "80%",
-    borderRadius: 25,
-    padding: 30,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(0, 122, 255, 0.4)",
-    overflow: "hidden",
-    backgroundColor: "rgba(0,0,0,0.45)",
+    width: "80%", borderRadius: 25, padding: 30, alignItems: "center",
+    borderWidth: 1, borderColor: "rgba(0,122,255,0.4)",
+    overflow: "hidden", backgroundColor: "rgba(0,0,0,0.45)",
   },
   alertHeaderBox: { flexDirection: "row", marginBottom: 20 },
-  alertHeaderTextMain: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "bold",
-    letterSpacing: 2,
-  },
-  alertHeaderTextSub: {
-    color: "#007AFF",
-    fontSize: 14,
-    fontWeight: "bold",
-    letterSpacing: 2,
-    marginLeft: 5,
-  },
+  alertHeaderTextMain: { color: "#fff", fontSize: 14, fontWeight: "bold", letterSpacing: 2 },
+  alertHeaderTextSub: { color: "#007AFF", fontSize: 14, fontWeight: "bold", letterSpacing: 2 },
   successIconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "rgba(239, 68, 68, 0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: "#ef4444",
+    width: 50, height: 50, borderRadius: 25,
+    backgroundColor: "rgba(239,68,68,0.1)",
+    justifyContent: "center", alignItems: "center",
+    marginBottom: 15, borderWidth: 1, borderColor: "#ef4444",
   },
   successIconText: { color: "#ef4444", fontSize: 24, fontWeight: "bold" },
-  alertTitle: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-    letterSpacing: 1,
-    marginBottom: 10,
-  },
+  alertTitle: { color: "#fff", fontSize: 16, fontWeight: "bold", letterSpacing: 1, marginBottom: 10 },
   alertMessage: {
-    color: "rgba(255,255,255,0.6)",
-    fontSize: 12,
-    textAlign: "center",
-    lineHeight: 18,
-    marginBottom: 20,
+    color: "rgba(255,255,255,0.6)", fontSize: 12,
+    textAlign: "center", lineHeight: 18, marginBottom: 20,
   },
-  alertActions: {
-    width: "100%",
-    flexDirection: "row",
-    gap: 10,
-  },
+  alertActions: { width: "100%", flexDirection: "row", gap: 10 },
   alertCancelButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
+    flex: 1, borderWidth: 1, borderColor: "rgba(255,255,255,0.25)",
+    paddingVertical: 14, borderRadius: 12, alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.06)",
   },
   alertCancelButtonText: { color: "#fff", fontWeight: "bold", letterSpacing: 1 },
   alertButton: {
-    flex: 1,
-    backgroundColor: "#ef4444",
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
+    flex: 1, backgroundColor: "#ef4444",
+    paddingVertical: 14, borderRadius: 12, alignItems: "center",
   },
   alertButtonText: { color: "#fff", fontWeight: "bold", letterSpacing: 1 },
 });

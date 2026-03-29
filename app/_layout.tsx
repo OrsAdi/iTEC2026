@@ -9,6 +9,7 @@ export default function Layout() {
       <Stack.Screen name="scan" />
       <Stack.Screen name="editor" />
       <Stack.Screen name="draw/[id]" />
+      <Stack.Screen name="profile" />
     </Stack>
   );
 }

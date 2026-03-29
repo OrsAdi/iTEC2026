@@ -1,462 +1,234 @@
+import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import React, { useEffect, useState } from "react";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
-  FlatList,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import AppBackground from "./components/AppBackground";
+import BottomNav from "./components/BottomNav";
+import { getAllPosters } from "./lib/storage";
 import { supabase } from "./lib/supabase";
 
+interface Profile {
+  id: string;
+  email: string;
+  username: string | null;
+  created_at: string;
+}
+
 export default function ProfileScreen() {
-  const availableAvatars = [
-    { id: "1", uri: "https://api.dicebear.com/7.x/bottts/png?seed=1" },
-    { id: "2", uri: "https://api.dicebear.com/7.x/bottts/png?seed=2" },
-    { id: "3", uri: "https://api.dicebear.com/7.x/bottts/png?seed=3" },
-    { id: "4", uri: "https://api.dicebear.com/7.x/bottts/png?seed=4" },
-  ];
-
-  const [userData, setUserData] = useState({
-    name: "Codrin Alberto",
-    email: "codrinalberti@gmail.com",
-    acronym: "SAFIRU",
-    teamName: "FC AutoUtilitarele SA",
-    avatar: availableAvatars[0].uri,
-  });
-
-  const [isAvatarModalVisible, setIsAvatarModalVisible] = useState(false);
-  const [isAlertVisible, setIsAlertVisible] = useState(false);
-
-  // --- LOGICA SUPABASE ---
-
-  const fetchProfile = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        let { data, error } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .single();
-
-        if (data) {
-          setUserData({
-            name: data.full_name || "",
-            email: user.email || "",
-            acronym: data.acronym || "",
-            teamName: data.team_name || "Fără Echipă",
-            avatar: data.avatar_url || availableAvatars[0].uri,
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Eroare la descărcare:", error);
-    }
-  };
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [posterCount, setPosterCount] = useState(0);
+  const [annotatedCount, setAnnotatedCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    fetchProfile();
+    loadProfile();
+    loadStats();
   }, []);
 
-  const handleSave = async () => {
+  const loadProfile = async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const updates = {
-        id: user.id,
-        full_name: userData.name,
-        acronym: userData.acronym,
-        avatar_url: userData.avatar,
-        updated_at: new Date(),
-      };
-
-      let { error } = await supabase.from("profiles").upsert(updates);
-      if (error) throw error;
-
-      setIsAlertVisible(true);
-    } catch (error: any) {
-      alert("Error updating profile: " + (error.message || "Unknown error"));
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) return;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", session.session.user.id)
+        .single();
+      if (!error && data) setProfile(data);
+    } catch (e) {
+      console.log("Profile load error:", e);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // --- RENDER UI ---
+  const loadStats = async () => {
+    const posters = await getAllPosters();
+    setPosterCount(posters.length);
+    setAnnotatedCount(
+      posters.filter((p) => p.drawingData !== "[]" && p.drawingData !== "").length
+    );
+  };
+
+  if (loading) {
+    return (
+      <AppBackground>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#007AFF" />
+        </View>
+      </AppBackground>
+    );
+  }
 
   return (
-    <View style={styles.background}>
-      <SafeAreaView style={styles.container}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.keyboardView}
-        >
-          <ScrollView contentContainerStyle={styles.scrollContainer}>
-            {/* INCEPUT GLASS WRAPPER */}
-            <View style={styles.glassWrapper}>
-              <View style={styles.blurContainer}>
-                <View style={styles.logoContainer}>
-                  <View style={styles.logoBox}>
-                    <Text style={styles.logoTextMain}>MY</Text>
-                    <Text style={styles.logoTextSub}>PROFILE</Text>
-                  </View>
-                </View>
+    <AppBackground>
+      <View style={styles.container}>
+        {/* Header */}
+        <BlurView intensity={80} tint="dark" style={styles.header}>
+          <View style={styles.logoBox}>
+            <Text style={styles.logoTextMain}>GLITCH_</Text>
+            <Text style={styles.logoTextSub}>TAG</Text>
+          </View>
+          <Text style={styles.headerSub}>MY_PROFILE</Text>
+        </BlurView>
 
-                <View style={styles.avatarSection}>
-                  <TouchableOpacity
-                    onPress={() => setIsAvatarModalVisible(true)}
-                    style={styles.avatarTouch}
-                  >
-                    <Image
-                      source={{ uri: userData.avatar }}
-                      style={styles.avatarImage}
-                    />
-                    <View style={styles.editBadge}>
-                      <Text style={styles.editBadgeText}>+</Text>
-                    </View>
-                  </TouchableOpacity>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Avatar */}
+          <BlurView intensity={60} tint="dark" style={styles.avatarCard}>
+            <View style={styles.avatarCircle}>
+              <Ionicons name="person" size={48} color="#007AFF" />
+            </View>
+            <Text style={styles.emailText}>{profile?.email ?? "—"}</Text>
+            <Text style={styles.joinedText}>
+              Joined {profile?.created_at ? new Date(profile.created_at).toLocaleDateString("ro-RO") : "—"}
+            </Text>
+          </BlurView>
 
-                  <View style={styles.teamBadge}>
-                    <Text style={styles.teamBadgeText}>
-                      {userData.teamName}
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={styles.title}>USER INFORMATION</Text>
-
-                <View style={styles.form}>
-                  <View style={styles.inputLabelGroup}>
-                    <Text style={styles.microLabel}>NAME</Text>
-                    <View style={styles.inputWrapper}>
-                      <TextInput
-                        style={styles.input}
-                        value={userData.name}
-                        onChangeText={(text) =>
-                          setUserData({ ...userData, name: text })
-                        }
-                      />
-                    </View>
-                  </View>
-
-                  <View style={styles.inputLabelGroup}>
-                    <Text style={styles.microLabel}>EMAIL</Text>
-                    <View style={[styles.inputWrapper, { opacity: 0.6 }]}>
-                      <Text style={[styles.input, { paddingTop: 18 }]}>
-                        {userData.email}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.inputLabelGroup}>
-                    <Text style={styles.microLabel}>ACRONYM</Text>
-                    <View style={styles.inputWrapper}>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          { color: "#007AFF", fontWeight: "bold" },
-                        ]}
-                        value={userData.acronym}
-                        onChangeText={(text) =>
-                          setUserData({ ...userData, acronym: text })
-                        }
-                        maxLength={8}
-                      />
-                    </View>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.saveButton}
-                    onPress={handleSave}
-                  >
-                    <Text style={styles.saveButtonText}>SAVE CHANGES</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.credits}>iTEC OVERRIDE v1.0.26</Text>
-              </View>{" "}
-              {/* INCHIDE blurContainer */}
-            </View>{" "}
-            {/* INCHIDE glassWrapper */}
-          </ScrollView>
-        </KeyboardAvoidingView>
-
-        {/* MODAL AVATAR */}
-        <Modal
-          visible={isAvatarModalVisible}
-          animationType="fade"
-          transparent={true}
-        >
-          <View style={styles.modalOverlay}>
-            <BlurView intensity={90} tint="dark" style={styles.modalContainer}>
-              <Text style={[styles.title, { marginBottom: 20 }]}>
-                SELECT AVATAR
+          {/* Stats */}
+          <View style={styles.statsRow}>
+            <BlurView intensity={60} tint="dark" style={styles.statCard}>
+              <Text style={styles.statNumber}>{posterCount}</Text>
+              <Text style={styles.statLabel}>AFIȘE{"\n"}SCANATE</Text>
+            </BlurView>
+            <BlurView intensity={60} tint="dark" style={styles.statCard}>
+              <Text style={styles.statNumber}>{annotatedCount}</Text>
+              <Text style={styles.statLabel}>AFIȘE{"\n"}ADNOTATE</Text>
+            </BlurView>
+            <BlurView intensity={60} tint="dark" style={styles.statCard}>
+              <Text style={styles.statNumber}>
+                {posterCount > 0 ? Math.round((annotatedCount / posterCount) * 100) : 0}%
               </Text>
-              <FlatList
-                data={availableAvatars}
-                numColumns={2}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setUserData({ ...userData, avatar: item.uri });
-                      setIsAvatarModalVisible(false);
-                    }}
-                    style={styles.avatarOption}
-                  >
-                    <Image
-                      source={{ uri: item.uri }}
-                      style={styles.avatarOptionImage}
-                    />
-                  </TouchableOpacity>
-                )}
-              />
-              <TouchableOpacity
-                onPress={() => setIsAvatarModalVisible(false)}
-                style={styles.footer}
-              >
-                <Text style={styles.footerLink}>CANCEL</Text>
-              </TouchableOpacity>
+              <Text style={styles.statLabel}>RATA{"\n"}ADNOTARE</Text>
             </BlurView>
           </View>
-        </Modal>
 
-        {/* CUSTOM ALERT */}
-        <Modal visible={isAlertVisible} animationType="fade" transparent={true}>
-          <View style={styles.modalOverlay}>
-            <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
-              <View style={styles.alertHeaderBox}>
-                <Text style={styles.alertHeaderTextMain}>PROFILE</Text>
-                <Text style={styles.alertHeaderTextSub}>STATUS</Text>
+          {/* Info */}
+          <BlurView intensity={60} tint="dark" style={styles.infoCard}>
+            <Text style={styles.infoCardTitle}>ACCOUNT_INFO</Text>
+            <View style={styles.infoRow}>
+              <Ionicons name="mail-outline" size={18} color="#007AFF" />
+              <View style={styles.infoTextWrapper}>
+                <Text style={styles.infoLabel}>EMAIL</Text>
+                <Text style={styles.infoValue}>{profile?.email ?? "—"}</Text>
               </View>
-              <View style={styles.successIconCircle}>
-                <Text style={styles.successIconText}>✓</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.infoRow}>
+              <Ionicons name="finger-print-outline" size={18} color="#007AFF" />
+              <View style={styles.infoTextWrapper}>
+                <Text style={styles.infoLabel}>USER ID</Text>
+                <Text style={styles.infoValue} numberOfLines={1}>
+                  {profile?.id?.slice(0, 16) ?? "—"}...
+                </Text>
               </View>
-              <Text style={styles.alertTitle}>IDENTITY UPDATED</Text>
-              <Text style={styles.alertMessage}>
-                User profile information has been successfully updated.
-              </Text>
-              <TouchableOpacity
-                style={styles.alertButton}
-                onPress={() => setIsAlertVisible(false)}
-              >
-                <Text style={styles.alertButtonText}>OK</Text>
-              </TouchableOpacity>
-            </BlurView>
-          </View>
-        </Modal>
-      </SafeAreaView>
-    </View>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.infoRow}>
+              <Ionicons name="calendar-outline" size={18} color="#007AFF" />
+              <View style={styles.infoTextWrapper}>
+                <Text style={styles.infoLabel}>MEMBER SINCE</Text>
+                <Text style={styles.infoValue}>
+                  {profile?.created_at ? new Date(profile.created_at).toLocaleDateString("ro-RO") : "—"}
+                </Text>
+              </View>
+            </View>
+          </BlurView>
+
+          {/* Actions */}
+          <BlurView intensity={60} tint="dark" style={styles.actionsCard}>
+            <Text style={styles.infoCardTitle}>QUICK_ACTIONS</Text>
+            <TouchableOpacity style={styles.actionBtn} onPress={() => router.push("/feed")}>
+              <Ionicons name="images-outline" size={20} color="#007AFF" />
+              <Text style={styles.actionBtnText}>Vezi Feed-ul</Text>
+              <Ionicons name="chevron-forward" size={16} color="#555" />
+            </TouchableOpacity>
+            <View style={styles.divider} />
+            <TouchableOpacity style={styles.actionBtn} onPress={() => router.push("/scan")}>
+              <Ionicons name="camera-outline" size={20} color="#007AFF" />
+              <Text style={styles.actionBtnText}>Scanează Afiș</Text>
+              <Ionicons name="chevron-forward" size={16} color="#555" />
+            </TouchableOpacity>
+            <View style={styles.divider} />
+            <TouchableOpacity style={styles.actionBtn} onPress={() => router.push("/team")}>
+              <Ionicons name="people-outline" size={20} color="#007AFF" />
+              <Text style={styles.actionBtnText}>Vezi Echipa</Text>
+              <Ionicons name="chevron-forward" size={16} color="#555" />
+            </TouchableOpacity>
+          </BlurView>
+
+          <Text style={styles.version}>VER. 1.0.26 | iTEC OVERRIDE</Text>
+        </ScrollView>
+
+        <BottomNav activeTab="profile" />
+      </View>
+    </AppBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  background: { flex: 1, backgroundColor: "#001a33" },
-  keyboardView: { flex: 1 },
-  scrollContainer: { flexGrow: 1, justifyContent: "center", padding: 25 },
-  glassWrapper: {
-    borderRadius: 30,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.15)",
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  header: {
+    paddingTop: 55, paddingBottom: 15, paddingHorizontal: 25,
+    borderBottomWidth: 1, borderBottomColor: "rgba(0,122,255,0.3)",
+    alignItems: "center", backgroundColor: "rgba(0,0,0,0.3)",
   },
-  blurContainer: {
-    padding: 35,
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-  },
-  avatarSection: { alignItems: "center", marginBottom: 25 },
-  avatarTouch: { position: "relative", marginBottom: 12 },
-  avatarImage: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    borderWidth: 2,
-    borderColor: "#007AFF",
-  },
-  editBadge: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    backgroundColor: "#007AFF",
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#fff",
-  },
-  editBadgeText: { color: "#fff", fontSize: 14, fontWeight: "bold" },
-  teamBadge: {
-    backgroundColor: "rgba(0, 122, 255, 0.15)",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(0, 122, 255, 0.3)",
-  },
-  teamBadgeText: {
-    color: "#007AFF",
-    fontSize: 10,
-    fontWeight: "bold",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-  },
-  logoContainer: { marginBottom: 20 },
   logoBox: {
-    flexDirection: "row",
-    backgroundColor: "rgba(0, 122, 255, 0.1)",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: "#007AFF",
+    flexDirection: "row", backgroundColor: "rgba(0,122,255,0.1)",
+    paddingHorizontal: 16, paddingVertical: 6,
+    borderRadius: 12, borderWidth: 1, borderColor: "#007AFF", marginBottom: 4,
   },
-  logoTextMain: { color: "#fff", fontSize: 22, fontWeight: "bold" },
-  logoTextSub: {
-    color: "#007AFF",
-    fontSize: 22,
-    fontWeight: "bold",
-    marginLeft: 5,
+  logoTextMain: { color: "#fff", fontSize: 20, fontWeight: "bold" },
+  logoTextSub: { color: "#007AFF", fontSize: 20, fontWeight: "bold" },
+  headerSub: { color: "#555", fontSize: 11, letterSpacing: 3, marginTop: 4 },
+  scrollContent: { padding: 16, paddingBottom: 100 },
+  avatarCard: {
+    borderRadius: 20, padding: 24, alignItems: "center", marginBottom: 16,
+    borderWidth: 1, borderColor: "rgba(0,122,255,0.2)",
+    overflow: "hidden", backgroundColor: "rgba(0,0,0,0.3)",
   },
-  title: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#fff",
-    letterSpacing: 2,
-    marginBottom: 5,
+  avatarCircle: {
+    width: 90, height: 90, borderRadius: 45,
+    backgroundColor: "rgba(0,122,255,0.1)",
+    borderWidth: 2, borderColor: "#007AFF",
+    alignItems: "center", justifyContent: "center", marginBottom: 12,
   },
-  form: { width: "100%" },
-  inputLabelGroup: { marginBottom: 15, width: "100%" },
-  microLabel: {
-    color: "rgba(255, 255, 255, 0.4)",
-    fontSize: 9,
-    fontWeight: "bold",
-    marginBottom: 5,
-    marginLeft: 5,
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
+  emailText: { color: "#fff", fontSize: 16, fontWeight: "700", marginBottom: 4 },
+  joinedText: { color: "#555", fontSize: 12, letterSpacing: 1 },
+  statsRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
+  statCard: {
+    flex: 1, borderRadius: 16, padding: 16, alignItems: "center",
+    borderWidth: 1, borderColor: "rgba(0,122,255,0.2)",
+    overflow: "hidden", backgroundColor: "rgba(0,0,0,0.3)",
   },
-  inputWrapper: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    height: 55,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+  statNumber: { color: "#007AFF", fontSize: 24, fontWeight: "bold", marginBottom: 4 },
+  statLabel: { color: "#555", fontSize: 9, letterSpacing: 1, textAlign: "center", lineHeight: 14 },
+  infoCard: {
+    borderRadius: 20, padding: 20, marginBottom: 16,
+    borderWidth: 1, borderColor: "rgba(0,122,255,0.2)",
+    overflow: "hidden", backgroundColor: "rgba(0,0,0,0.3)",
   },
-  input: {
-    flex: 1,
-    color: "#fff",
-    fontSize: 14,
-    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+  infoCardTitle: { color: "#007AFF", fontSize: 11, fontWeight: "bold", letterSpacing: 2, marginBottom: 16 },
+  infoRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: 12 },
+  infoTextWrapper: { flex: 1 },
+  infoLabel: { color: "#555", fontSize: 10, letterSpacing: 1, marginBottom: 2 },
+  infoValue: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  divider: { height: 1, backgroundColor: "rgba(255,255,255,0.06)" },
+  actionsCard: {
+    borderRadius: 20, padding: 20, marginBottom: 16,
+    borderWidth: 1, borderColor: "rgba(0,122,255,0.2)",
+    overflow: "hidden", backgroundColor: "rgba(0,0,0,0.3)",
   },
-  saveButton: {
-    backgroundColor: "#007AFF",
-    height: 55,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 15,
-  },
-  saveButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-    letterSpacing: 2,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.85)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContainer: {
-    width: "80%",
-    borderRadius: 25,
-    padding: 25,
-    alignItems: "center",
-    overflow: "hidden",
-  },
-  avatarOption: { margin: 15 },
-  avatarOptionImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 1,
-    borderColor: "#444",
-  },
-  footer: { marginTop: 20 },
-  footerLink: { color: "#007AFF", fontWeight: "bold" },
-  customAlertCard: {
-    width: "80%",
-    borderRadius: 25,
-    padding: 30,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(0, 122, 255, 0.4)",
-    overflow: "hidden",
-  },
-  alertHeaderBox: { flexDirection: "row", marginBottom: 20 },
-  alertHeaderTextMain: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "bold",
-    letterSpacing: 2,
-  },
-  alertHeaderTextSub: {
-    color: "#007AFF",
-    fontSize: 14,
-    fontWeight: "bold",
-    letterSpacing: 2,
-    marginLeft: 5,
-  },
-  successIconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "rgba(0, 255, 120, 0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: "#00FF78",
-  },
-  successIconText: { color: "#00FF78", fontSize: 24, fontWeight: "bold" },
-  alertTitle: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-    letterSpacing: 1,
-    marginBottom: 10,
-  },
-  alertMessage: {
-    color: "rgba(255,255,255,0.6)",
-    fontSize: 12,
-    textAlign: "center",
-    lineHeight: 18,
-    marginBottom: 25,
-  },
-  alertButton: {
-    backgroundColor: "#007AFF",
-    width: "100%",
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  alertButtonText: { color: "#fff", fontWeight: "bold", letterSpacing: 1 },
-  credits: { color: "#444", fontSize: 10, marginTop: 25 },
+  actionBtn: { flexDirection: "row", alignItems: "center", paddingVertical: 12, gap: 12 },
+  actionBtnText: { flex: 1, color: "#fff", fontSize: 14, fontWeight: "600" },
+  version: { color: "#333", fontSize: 10, textAlign: "center", letterSpacing: 1, marginTop: 8 },
 });
