@@ -28,10 +28,10 @@ import { supabase } from "./lib/supabase";
 
 import type { PosterEntry } from "./lib/storage";
 import {
+    deletePoster,
     DrawPath,
     getPoster,
-    resetPosterToOriginal,
-    updateDrawing,
+    updateDrawing
 } from "./lib/storage";
 
 const COLORS = [
@@ -46,27 +46,55 @@ const COLORS = [
   "#000000",
 ];
 const STROKE_WIDTHS = [2, 4, 8, 14];
+const OPENAI_IMAGE_API_URL = "https://api.openai.com/v1/images/generations";
+const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY?.trim();
+const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY?.trim();
 const GIF_OPTIONS = [
   "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExY2xqN2I0c2F2dWN4eXV6dDZ0aWh6bWI1Y2x4dnF0a2YwdW9qdjNnMSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/ICOgUNjpvO0PC/giphy.gif",
   "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeHVmNnM2MzVibnNmbWwwNDUydDV4N2FwNTA2N2RoMjlpczhqN2d0dSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/l0HlNaQ6gWfllcjDO/giphy.gif",
   "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExN2xwbHRiYjI1ZW5tOHVhZm5uN2MyZ2Q3c2l4NWIzMmVhM2NncTBpYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/3oEjI6SIIHBdRxXI40/giphy.gif",
   "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcnN3d2FscDd5d3J2M3RlcWl6a2s0djNyb2xud3NrdXN5ejF5MjVwNyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/fxsqOYnIMEefC/giphy.gif",
+  "https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif",
+  "https://media.giphy.com/media/26ufdipQqU2lhNA4g/giphy.gif",
+  "https://media.giphy.com/media/3oriO0OEd9QIDdllqo/giphy.gif",
+  "https://media.giphy.com/media/3oriO7A7bt1wsEP4cw/giphy.gif",
+  "https://media.giphy.com/media/xT0xeJpnrWC4XWblEk/giphy.gif",
+  "https://media.giphy.com/media/3og0IPxMM0erATueVW/giphy.gif",
+  "https://media.giphy.com/media/l4FGuhL4U2WyjdkaY/giphy.gif",
+  "https://media.giphy.com/media/5GoVLqeAOo6PK/giphy.gif",
+  "https://media.giphy.com/media/3orieUe6ejxSFxYCXe/giphy.gif",
+  "https://media.giphy.com/media/l0MYB8Ory7Hqefo9a/giphy.gif",
+  "https://media.giphy.com/media/3o6ZtaO9BZHcOjmErm/giphy.gif",
+  "https://media.giphy.com/media/3o7TKsQ8UQH7Q4n2lq/giphy.gif",
+  "https://media.giphy.com/media/xTiTnxpQ3ghPiB2Hp6/giphy.gif",
+  "https://media.giphy.com/media/13CoXDiaCcCoyk/giphy.gif",
 ];
-const MUSIC_OPTIONS = [
-  {
-    title: "Neon Pulse",
-    url: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3?filename=technology-ambient-112188.mp3",
-  },
-  {
-    title: "City Loop",
-    url: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_4bfea89d07.mp3?filename=future-bass-112194.mp3",
-  },
-  {
-    title: "Drift",
-    url: "https://cdn.pixabay.com/download/audio/2021/11/25/audio_cb4f0f57f6.mp3?filename=ambient-piano-logo-165357.mp3",
-  },
+const STICKER_OPTIONS = [
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f525.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/2728.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4a5.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f44d.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f680.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f389.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f381.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f496.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f31f.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f920.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4af.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f3c6.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f3a7.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f3b5.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f984.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f47b.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f916.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f60e.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4f8.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f3a8.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f393.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f9e0.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f48e.png",
+  "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f31a.png",
 ];
-
 type GifSticker = {
   id: string;
   uri: string;
@@ -143,6 +171,181 @@ function pathsToD(points: { x: number; y: number }[]): string {
   if (points.length === 0) return "";
   const [first, ...rest] = points;
   return `M ${first.x} ${first.y} ` + rest.map((p) => `L ${p.x} ${p.y}`).join(" ");
+}
+
+function normalizeHttpUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^\/\//.test(trimmed)) return `https:${trimmed}`;
+  return `https://${trimmed}`;
+}
+
+function extractMetaImageUrl(html: string): string | null {
+  const patterns = [
+    /<meta[^>]+property=["']og:image(?::url)?["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::url)?["'][^>]*>/i,
+    /<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["'][^>]*>/i,
+  ];
+
+  for (const regex of patterns) {
+    const match = html.match(regex);
+    if (match?.[1]) return match[1].replace(/&amp;/g, "&");
+  }
+  return null;
+}
+
+async function resolveGifUrl(input: string): Promise<string | null> {
+  const candidate = normalizeHttpUrl(input);
+  if (/\.(gif|webp|png|jpe?g)(\?|#|$)/i.test(candidate)) {
+    return candidate;
+  }
+
+  try {
+    const head = await fetch(candidate, { method: "HEAD" });
+    const type = (head.headers.get("content-type") || "").toLowerCase();
+    if (type.startsWith("image/")) {
+      return head.url || candidate;
+    }
+  } catch {
+    // Continue with HTML inspection fallback.
+  }
+
+  try {
+    const response = await fetch(candidate, { method: "GET" });
+    const type = (response.headers.get("content-type") || "").toLowerCase();
+    if (type.startsWith("image/")) {
+      return response.url || candidate;
+    }
+
+    const html = await response.text();
+    const fromMeta = extractMetaImageUrl(html);
+    if (fromMeta) {
+      return normalizeHttpUrl(fromMeta);
+    }
+
+    // Giphy page fallback: https://giphy.com/gifs/<slug>-<id>
+    if (/giphy\.com/i.test(candidate)) {
+      const path = new URL(candidate).pathname;
+      const parts = path.split("/").filter(Boolean);
+      const last = parts[parts.length - 1] || "";
+      const id = last.split("-").pop();
+      if (id && /^[A-Za-z0-9]+$/.test(id)) {
+        return `https://media.giphy.com/media/${id}/giphy.gif`;
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function extractGeneratedImageUri(payload: any): string | null {
+  const first = payload?.data?.[0];
+  if (!first) return null;
+  if (typeof first.url === "string" && first.url.length > 0) {
+    return first.url;
+  }
+  if (typeof first.b64_json === "string" && first.b64_json.length > 0) {
+    return `data:image/png;base64,${first.b64_json}`;
+  }
+  return null;
+}
+
+function buildFallbackAiStickerUrl(prompt: string): string {
+  const safePrompt = encodeURIComponent(
+    `clean sticker style, isolated object, no text, transparent background look, ${prompt}`
+  );
+  const seed = Date.now();
+  return `https://image.pollinations.ai/prompt/${safePrompt}?width=1024&height=1024&seed=${seed}&nologo=true`;
+}
+
+async function generateStickerWithGemini(prompt: string): Promise<string> {
+  if (!GEMINI_API_KEY) {
+    throw new Error("Cheia Gemini lipseste.");
+  }
+
+  const endpoint =
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${GEMINI_API_KEY}`;
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: `Generate a single sticker-style image with transparent background look, centered subject, no text: ${prompt}`,
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        responseModalities: ["IMAGE", "TEXT"],
+      },
+    }),
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    const message = payload?.error?.message || "Gemini nu a putut genera stickerul.";
+    throw new Error(String(message));
+  }
+
+  const candidates = Array.isArray(payload?.candidates) ? payload.candidates : [];
+  for (const candidate of candidates) {
+    const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [];
+    for (const part of parts) {
+      const b64 = part?.inlineData?.data;
+      const mime = part?.inlineData?.mimeType || "image/png";
+      if (typeof b64 === "string" && b64.length > 0) {
+        return `data:${mime};base64,${b64}`;
+      }
+    }
+  }
+
+  throw new Error("Gemini a raspuns fara imagine.");
+}
+
+async function materializeStickerUri(rawUri: string): Promise<string> {
+  const uri = rawUri.trim();
+  if (!uri) return uri;
+  if (uri.startsWith("file://")) return uri;
+
+  const cacheDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+  if (!cacheDir) return uri;
+
+  const dataUriMatch = uri.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (dataUriMatch?.[2]) {
+    try {
+      const extRaw = dataUriMatch[1].toLowerCase();
+      const ext = extRaw === "jpeg" ? "jpg" : extRaw;
+      const filePath = `${cacheDir}ai_sticker_${Date.now()}.${ext}`;
+      await FileSystem.writeAsStringAsync(filePath, dataUriMatch[2], {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      return filePath;
+    } catch {
+      return uri;
+    }
+  }
+
+  if (/^https?:\/\//i.test(uri)) {
+    try {
+      const filePath = `${cacheDir}ai_sticker_${Date.now()}.png`;
+      const result = await FileSystem.downloadAsync(uri, filePath);
+      if (result?.uri) return result.uri;
+    } catch {
+      return uri;
+    }
+  }
+
+  return uri;
 }
 
 function parseDrawPaths(raw: unknown): DrawPath[] {
@@ -257,8 +460,8 @@ export default function DrawScreen() {
   const [gifPickerVisible, setGifPickerVisible] = useState(false);
   const [musicPickerVisible, setMusicPickerVisible] = useState(false);
   const [gifUrlInput, setGifUrlInput] = useState("");
-  const [musicUrlInput, setMusicUrlInput] = useState("");
-  const [musicTitleInput, setMusicTitleInput] = useState("Track");
+  const [aiStickerPromptInput, setAiStickerPromptInput] = useState("");
+  const [aiStickerLoading, setAiStickerLoading] = useState(false);
   const [musicDurationInput, setMusicDurationInput] = useState("8");
   const [songQueryInput, setSongQueryInput] = useState("");
   const [songSearchLoading, setSongSearchLoading] = useState(false);
@@ -278,6 +481,7 @@ export default function DrawScreen() {
   const currentPoints = useRef<{ x: number; y: number }[]>([]);
   const activeColorRef = useRef(activeColor);
   const activeWidthRef = useRef(activeWidth);
+  const openAiBillingBlockedRef = useRef(false);
   const viewShotRef = useRef<ViewShot>(null);
   const dragStartRef = useRef<{ id: string; x: number; y: number } | null>(null);
   const activeSoundRef = useRef<Audio.Sound | null>(null);
@@ -414,12 +618,17 @@ export default function DrawScreen() {
     setClearConfirmVisible(false);
   }, []);
 
-  const addGifSticker = useCallback((uri: string) => {
-    const clean = uri.trim();
-    if (!clean) return;
+  const appendSticker = useCallback(async (stickerUri: string) => {
+    let materializedUri = stickerUri;
+    try {
+      materializedUri = await materializeStickerUri(stickerUri);
+    } catch {
+      materializedUri = stickerUri;
+    }
+
     const newSticker: GifSticker = {
       id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      uri: clean,
+      uri: materializedUri,
       x: 0.5,
       y: 0.5,
       size: 0.26,
@@ -430,7 +639,106 @@ export default function DrawScreen() {
     setIsStickerMode(true);
     setGifPickerVisible(false);
     setGifUrlInput("");
+    setAiStickerPromptInput("");
   }, []);
+
+  const addGifSticker = useCallback(async (uri: string) => {
+    const clean = uri.trim();
+    if (!clean) return;
+
+    const isDirectImage = /^data:image\//i.test(clean) || /\.(gif|webp|png|jpe?g)(\?|#|$)/i.test(clean);
+    const resolved = isDirectImage ? normalizeHttpUrl(clean) : await resolveGifUrl(clean);
+    if (!resolved) {
+      Alert.alert("Link invalid", "Nu am putut extrage un GIF/sticker din acest link.");
+      return;
+    }
+    await appendSticker(resolved);
+  }, [appendSticker]);
+
+  const handleGenerateAiSticker = useCallback(async () => {
+    const prompt = aiStickerPromptInput.trim();
+    if (!prompt) {
+      Alert.alert("Missing prompt", "Type what sticker you want to generate.");
+      return;
+    }
+    if (!GEMINI_API_KEY && !OPENAI_API_KEY) {
+      Alert.alert(
+        "Cheie API lipsa",
+        "Seteaza EXPO_PUBLIC_GEMINI_API_KEY sau EXPO_PUBLIC_OPENAI_API_KEY in config-ul proiectului."
+      );
+      return;
+    }
+
+    setAiStickerLoading(true);
+    try {
+      if (GEMINI_API_KEY) {
+        try {
+          const geminiUri = await generateStickerWithGemini(prompt);
+          await appendSticker(geminiUri);
+          return;
+        } catch {
+          // Continue with OpenAI or final fallback.
+        }
+      }
+
+      if (OPENAI_API_KEY && !openAiBillingBlockedRef.current) {
+        const response = await fetch(OPENAI_IMAGE_API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "gpt-image-1",
+            prompt: `Create a clean sticker-style image with transparent background: ${prompt}`,
+            size: "1024x1024",
+          }),
+        });
+
+        const payload = await response.json();
+        if (!response.ok) {
+          const message = payload?.error?.message || "Nu am putut genera stickerul.";
+          const code = String(payload?.error?.code || "");
+          if (/billing_hard_limit_reached/i.test(code) || /billing hard limit has been reached/i.test(String(message))) {
+            openAiBillingBlockedRef.current = true;
+            throw new Error(`BILLING_LIMIT::${message}`);
+          }
+          throw new Error(String(message));
+        }
+
+        const imageUri = extractGeneratedImageUri(payload);
+        if (!imageUri) {
+          throw new Error("Raspuns invalid de la API-ul de imagini.");
+        }
+
+        await appendSticker(imageUri);
+        return;
+      }
+
+      throw new Error("NO_PAID_PROVIDER");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Nu am putut genera stickerul.";
+      if (message.startsWith("BILLING_LIMIT::")) {
+        const fallbackUrl = buildFallbackAiStickerUrl(prompt);
+        await appendSticker(fallbackUrl);
+        Alert.alert(
+          "OpenAI limit atinsa",
+          "Am folosit fallback generator pentru sticker ca sa poti continua."
+        );
+        return;
+      }
+
+      if (message === "NO_PAID_PROVIDER") {
+        const fallbackUrl = buildFallbackAiStickerUrl(prompt);
+        await appendSticker(fallbackUrl);
+        return;
+      }
+
+      Alert.alert("Generare esuata", message);
+    } finally {
+      setAiStickerLoading(false);
+    }
+  }, [aiStickerPromptInput, appendSticker]);
 
   const addMusicSticker = useCallback((uri: string, title: string, durationSec: number) => {
     const clean = uri.trim();
@@ -450,8 +758,6 @@ export default function DrawScreen() {
     setSelectedStickerId(null);
     setIsStickerMode(true);
     setMusicPickerVisible(false);
-    setMusicUrlInput("");
-    setMusicTitleInput("Track");
     setMusicDurationInput("8");
   }, []);
 
@@ -461,7 +767,7 @@ export default function DrawScreen() {
     if (isYouTubeUrl(clean)) {
       Alert.alert(
         "YouTube not supported for autoplay",
-        "Link-urile YouTube nu pot fi folosite doar audio aici. Cauta melodia dupa nume si selecteaza un rezultat audio."
+        "YouTube links cannot be used as audio-only here. Search by song name and select an audio result."
       );
       return;
     }
@@ -472,8 +778,6 @@ export default function DrawScreen() {
       durationSec: Math.max(3, Math.min(30, durationSec || 8)),
     });
     setMusicPickerVisible(false);
-    setMusicUrlInput("");
-    setMusicTitleInput("Track");
     setMusicDurationInput("8");
     setSongSearchResults([]);
     setSongQueryInput("");
@@ -482,7 +786,7 @@ export default function DrawScreen() {
   const handleSearchSongByName = useCallback(async () => {
     const query = songQueryInput.trim();
     if (!query) {
-      Alert.alert("Cauta o melodie", "Scrie numele piesei sau artistul.");
+      Alert.alert("Search song", "Type the song name or artist.");
       return;
     }
 
@@ -491,18 +795,19 @@ export default function DrawScreen() {
       const results = await searchSongsByName(query);
       setSongSearchResults(results);
       if (results.length === 0) {
-        Alert.alert("Nimic gasit", "Nu am gasit preview audio pentru cautarea ta.");
+        Alert.alert("No results", "No audio preview found for your search.");
       }
     } catch {
-      Alert.alert("Eroare", "Nu am putut cauta melodia acum.");
+      Alert.alert("Error", "Could not search for the song right now.");
     } finally {
       setSongSearchLoading(false);
     }
   }, [songQueryInput]);
 
   const handleSelectSongResult = useCallback((song: SongSearchResult) => {
-    setPosterBackgroundMusic(song.previewUrl, `${song.title} - ${song.artist}`, song.durationSec);
-  }, [setPosterBackgroundMusic]);
+    const chosenDuration = Math.max(3, Math.min(30, Number(musicDurationInput || song.durationSec) || song.durationSec));
+    setPosterBackgroundMusic(song.previewUrl, `${song.title} - ${song.artist}`, chosenDuration);
+  }, [musicDurationInput, setPosterBackgroundMusic]);
 
   const updateSticker = useCallback((idToUpdate: string, update: Partial<GifSticker>) => {
     setStickers((prev) => prev.map((s) => (s.id === idToUpdate ? { ...s, ...update } : s)));
@@ -599,7 +904,7 @@ export default function DrawScreen() {
         }
       }, Math.max(3, Math.min(20, sticker.durationSec)) * 1000);
     } catch {
-      Alert.alert("Eroare", "Nu am putut reda acest clip audio.");
+      Alert.alert("Error", "Could not play this audio clip.");
     }
   }, []);
 
@@ -651,24 +956,13 @@ export default function DrawScreen() {
       return;
     }
     try {
-      const originalImageUri = await resetPosterToOriginal(id);
-      setPaths([]);
-      setStickers([]);
-      setMusicStickers([]);
-      setBackgroundMusic(null);
-      if (originalImageUri) {
-        setPoster((prev) => (prev ? {
-          ...prev,
-          imageUri: originalImageUri,
-          drawingData: "[]",
-          updatedAt: Date.now(),
-        } : prev));
-      }
+      await deletePoster(id);
       setDeleteConfirmVisible(false);
+      router.replace("/feed");
     } catch {
-      Alert.alert("Eroare", "Nu s-au putut șterge adnotările.");
+      Alert.alert("Error", "Could not delete this poster.");
     }
-  }, [id]);
+  }, [id, router]);
 
   const handleSave = useCallback(async () => {
     if (!id) return;
@@ -715,7 +1009,7 @@ export default function DrawScreen() {
               {poster.title}
             </Text>
             <Text style={styles.headerDate}>
-              {new Date(poster.createdAt).toLocaleDateString("ro-RO")}
+              {new Date(poster.createdAt).toLocaleDateString("en-US")}
             </Text>
           </View>
           <View style={styles.headerActions}>
@@ -729,7 +1023,7 @@ export default function DrawScreen() {
             >
               {saving
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={styles.saveBtnText}>Salvează</Text>
+                : <Text style={styles.saveBtnText}>Save</Text>
               }
             </TouchableOpacity>
             <TouchableOpacity
@@ -996,7 +1290,30 @@ export default function DrawScreen() {
                 <Text style={styles.alertHeaderTextMain}>GIF</Text>
                 <Text style={styles.alertHeaderTextSub}> PICKER</Text>
               </View>
-              <Text style={styles.alertMessage}>Alege un GIF preset sau pune link direct.</Text>
+              <Text style={styles.alertMessage}>Pick a GIF or sticker preset, or paste a direct link.</Text>
+
+              <Text style={styles.sectionLabel}>AI STICKER GENERATOR</Text>
+              <TextInput
+                value={aiStickerPromptInput}
+                onChangeText={setAiStickerPromptInput}
+                placeholder="ex: cyberpunk wolf neon"
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                style={styles.gifInput}
+                autoCorrect={false}
+              />
+              <TouchableOpacity
+                style={[styles.aiGenerateButton, aiStickerLoading && styles.searchSongButtonDisabled]}
+                onPress={handleGenerateAiSticker}
+                disabled={aiStickerLoading}
+              >
+                {aiStickerLoading ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.alertButtonText}>GENERATE AI STICKER</Text>
+                )}
+              </TouchableOpacity>
+
+              <Text style={styles.sectionLabel}>GIF PRESETS</Text>
 
               <ScrollView
                 horizontal
@@ -1011,10 +1328,24 @@ export default function DrawScreen() {
                 ))}
               </ScrollView>
 
+              <Text style={styles.sectionLabel}>STICKER PRESETS</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.gifRow}
+                style={styles.gifScroll}
+              >
+                {STICKER_OPTIONS.map((sticker) => (
+                  <TouchableOpacity key={sticker} onPress={() => addGifSticker(sticker)} style={styles.gifThumbWrap}>
+                    <Image source={{ uri: sticker }} style={styles.gifThumb} resizeMode="contain" />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
               <TextInput
                 value={gifUrlInput}
                 onChangeText={setGifUrlInput}
-                placeholder="https://...gif"
+                placeholder="https://...gif / .png / .webp"
                 placeholderTextColor="rgba(255,255,255,0.35)"
                 style={styles.gifInput}
                 autoCapitalize="none"
@@ -1038,21 +1369,12 @@ export default function DrawScreen() {
                 <Text style={styles.alertHeaderTextMain}>MUSIC</Text>
                 <Text style={styles.alertHeaderTextSub}> BACKGROUND</Text>
               </View>
-              <Text style={styles.alertMessage}>Alege muzica de fundal a posterului (autoplay la intrare, fara video).</Text>
-
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gifRow} style={styles.gifScroll}>
-                {MUSIC_OPTIONS.map((m) => (
-                  <TouchableOpacity key={m.url} style={styles.musicPreset} onPress={() => setPosterBackgroundMusic(m.url, m.title, 8)}>
-                    <Ionicons name="musical-note" size={14} color="#fff" />
-                    <Text style={styles.musicPresetText} numberOfLines={1}>{m.title}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              <Text style={styles.alertMessage}>Choose background music for this poster (autoplay on open, no video).</Text>
 
               <TextInput
                 value={songQueryInput}
                 onChangeText={setSongQueryInput}
-                placeholder="Cauta dupa nume (ex: The Weeknd Blinding Lights)"
+                placeholder="Search by name (e.g. The Weeknd Blinding Lights)"
                 placeholderTextColor="rgba(255,255,255,0.35)"
                 style={styles.gifInput}
                 autoCorrect={false}
@@ -1068,6 +1390,14 @@ export default function DrawScreen() {
                   <Text style={styles.alertButtonText}>SEARCH SONG</Text>
                 )}
               </TouchableOpacity>
+              <TextInput
+                value={musicDurationInput}
+                onChangeText={setMusicDurationInput}
+                placeholder="Duration seconds (3-30)"
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                style={styles.gifInput}
+                keyboardType="numeric"
+              />
               {songSearchResults.length > 0 ? (
                 <ScrollView style={styles.songResultsList} showsVerticalScrollIndicator={false}>
                   {songSearchResults.map((song) => (
@@ -1082,38 +1412,6 @@ export default function DrawScreen() {
                   ))}
                 </ScrollView>
               ) : null}
-
-              <TextInput
-                value={musicTitleInput}
-                onChangeText={setMusicTitleInput}
-                placeholder="Titlu muzica"
-                placeholderTextColor="rgba(255,255,255,0.35)"
-                style={styles.gifInput}
-              />
-              <TextInput
-                value={musicUrlInput}
-                onChangeText={setMusicUrlInput}
-                placeholder="https://...mp3 (direct audio link)"
-                placeholderTextColor="rgba(255,255,255,0.35)"
-                style={styles.gifInput}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <TextInput
-                value={musicDurationInput}
-                onChangeText={setMusicDurationInput}
-                placeholder="Durata secunde (3-20)"
-                placeholderTextColor="rgba(255,255,255,0.35)"
-                style={styles.gifInput}
-                keyboardType="numeric"
-              />
-
-              <TouchableOpacity
-                style={styles.alertButton}
-                onPress={() => setPosterBackgroundMusic(musicUrlInput, musicTitleInput, Number(musicDurationInput || "8"))}
-              >
-                <Text style={styles.alertButtonText}>SET BACKGROUND MUSIC</Text>
-              </TouchableOpacity>
               {backgroundMusic?.uri ? (
                 <TouchableOpacity
                   style={[styles.alertDeleteButton, { marginTop: 8 }]}
@@ -1139,8 +1437,8 @@ export default function DrawScreen() {
               <View style={styles.successIconCircle}>
                 <Text style={styles.successIconText}>✓</Text>
               </View>
-              <Text style={styles.alertTitle}>SALVAT CU SUCCES</Text>
-              <Text style={styles.alertMessage}>Adnotările au fost salvate.</Text>
+              <Text style={styles.alertTitle}>SAVED SUCCESSFULLY</Text>
+              <Text style={styles.alertMessage}>Annotations were saved.</Text>
               <TouchableOpacity
                 style={styles.alertButton}
                 onPress={() => {
@@ -1164,12 +1462,12 @@ export default function DrawScreen() {
               <View style={styles.deleteIconCircle}>
                 <Text style={styles.deleteIconText}>!</Text>
               </View>
-              <Text style={styles.alertTitle}>DELETE ALL NOTES</Text>
+              <Text style={styles.alertTitle}>DELETE POSTER</Text>
               <Text style={styles.alertMessage}>
-                Vrei să ștergi toate adnotările salvate de pe "{poster?.title}"?
+                Do you want to permanently delete "{poster?.title}"?
               </Text>
               <TouchableOpacity style={styles.alertDeleteButton} onPress={handleConfirmDelete}>
-                <Text style={styles.alertButtonText}>DELETE ALL</Text>
+                <Text style={styles.alertButtonText}>DELETE POSTER</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.alertCancelButton}
@@ -1192,7 +1490,7 @@ export default function DrawScreen() {
                 <Text style={styles.deleteIconText}>!</Text>
               </View>
               <Text style={styles.alertTitle}>DELETE ALL NOTES</Text>
-              <Text style={styles.alertMessage}>Vrei să elimini toate adnotările de pe acest afiș?</Text>
+              <Text style={styles.alertMessage}>Do you want to remove all annotations from this poster?</Text>
               <TouchableOpacity style={styles.alertDeleteButton} onPress={handleConfirmClear}>
                 <Text style={styles.alertButtonText}>DELETE ALL</Text>
               </TouchableOpacity>
@@ -1368,6 +1666,28 @@ const styles = StyleSheet.create({
   },
   songResultTitle: { color: "#fff", fontSize: 12, fontWeight: "700" },
   songResultMeta: { color: "rgba(255,255,255,0.72)", fontSize: 11, marginTop: 2 },
+  aiGenerateButton: {
+    backgroundColor: "#0b5bd3",
+    width: "100%",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  aiHintText: {
+    width: "100%",
+    color: "rgba(255,255,255,0.62)",
+    fontSize: 11,
+    marginBottom: 12,
+  },
+  sectionLabel: {
+    width: "100%",
+    color: "#9cc9ff",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
   gifScroll: { width: "100%", maxHeight: 82, marginBottom: 12 },
   gifRow: { gap: 8, paddingVertical: 4 },
   gifThumbWrap: {

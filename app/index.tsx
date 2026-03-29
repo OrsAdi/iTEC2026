@@ -68,7 +68,7 @@ export default function AuthScreen() {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      showError("INPUT_ERROR", "Complete email and password.");
+      showError("INPUT_ERROR", "Fill in email and password.");
       return;
     }
     setLoading(true);
@@ -79,11 +79,11 @@ export default function AuthScreen() {
 
   const handleSignUp = async () => {
     if (!email || !password) {
-      showError("INPUT_ERROR", "Complete email and password.");
+      showError("INPUT_ERROR", "Fill in email and password.");
       return;
     }
     if (password.length < 6) {
-      showError("INPUT_ERROR", "Password must be at least 6 characters long.");
+      showError("INPUT_ERROR", "Password must be at least 6 characters.");
       return;
     }
     setLoading(true);
@@ -98,7 +98,7 @@ export default function AuthScreen() {
     } else {
       showSuccess(
         "ACCOUNT_CREATED",
-        "Check your email to confirm your account, then log in."
+        "Check your email to confirm your account, then sign in."
       );
     }
   };

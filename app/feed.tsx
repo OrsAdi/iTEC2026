@@ -94,9 +94,10 @@ function PosterCard({ item, onPress, onLongPress, currentUserId }: {
     const payload = parseAnnotationPayload(item.drawingData as unknown);
     const paths = payload.paths;
     const stickers = payload.stickers;
-    const normalizedPaths = normalizePathsForCard(paths, CARD_W, CARD_IMAGE_H);
-    const totalAnnotations = normalizedPaths.length + stickers.length;
-    const isTeam = item?.isTeamPoster === true && item?.ownerId !== currentUserId;
+    const musicStickers = payload.musicStickers;
+    const isTeam = !!item.isTeamPoster && item.ownerId !== currentUserId;
+    const normalizedPaths = normalizePathsForCard(paths, CARD_W, CARD_H - 44);
+    const totalAnnotations = normalizedPaths.length + stickers.length + musicStickers.length;
 
     return (
         <TouchableOpacity
@@ -117,7 +118,17 @@ function PosterCard({ item, onPress, onLongPress, currentUserId }: {
                         resizeMode="contain" />
                 );
             })}
-
+            {musicStickers.map((music) => {
+                const widthPx = Math.max(64, Math.min(CARD_W * 0.9, music.size * CARD_W));
+                const x = Math.max(0, Math.min(CARD_W - widthPx, music.x * CARD_W - widthPx / 2));
+                const y = Math.max(0, Math.min(CARD_IMAGE_H - 24, music.y * CARD_IMAGE_H - 12));
+                return (
+                    <View key={music.id} style={[styles.musicSticker, { left: x, top: y, width: widthPx }]}>
+                        <Ionicons name="musical-note" size={10} color="#fff" />
+                        <Text style={styles.musicStickerText} numberOfLines={1}>{music.title}</Text>
+                    </View>
+                );
+            })}
             {normalizedPaths.length > 0 && (
                 <View style={StyleSheet.absoluteFill} pointerEvents="none">
                     <Svg width={CARD_W} height={CARD_IMAGE_H}>
@@ -145,8 +156,8 @@ function PosterCard({ item, onPress, onLongPress, currentUserId }: {
             <BlurView intensity={60} tint="dark" style={styles.cardFooter}>
                 <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
                 <Text style={styles.cardDate}>
-                    {new Date(item.createdAt).toLocaleDateString("ro-RO")}
-                    {isTeam ? " · echipă" : ""}
+                    {new Date(item.createdAt).toLocaleDateString("en-US")}
+                    {isTeam ? " · team" : ""}
                 </Text>
             </BlurView>
         </TouchableOpacity>

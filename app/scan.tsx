@@ -5,22 +5,22 @@ import * as ImageManipulator from "expo-image-manipulator";
 import { useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import { computeHash, isSamePosterAsync } from "./lib/phash";
 import {
-    deletePoster,
-    generateId,
-    getAllPosters,
-    savePoster,
+  deletePoster,
+  generateId,
+  getAllPosters,
+  savePoster,
 } from "./lib/storage";
 
 const FRAME_W = 260;
@@ -29,7 +29,7 @@ const FRAME_H = 340;
 export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [processing, setProcessing] = useState(false);
-  const [processingText, setProcessingText] = useState("Analizez afișul...");
+  const [processingText, setProcessingText] = useState("Analyzing poster...");
   const [duplicateModal, setDuplicateModal] = useState<{
     visible: boolean;
     posterId: string;
@@ -97,7 +97,7 @@ export default function ScanScreen() {
     if (!cameraRef.current || processing) return;
 
     setProcessing(true);
-    setProcessingText("Capturez imaginea...");
+    setProcessingText("Capturing image...");
 
     try {
       const photo = await cameraRef.current.takePictureAsync({
@@ -105,7 +105,7 @@ export default function ScanScreen() {
         base64: false,
       });
 
-      if (!photo?.uri) throw new Error("Nu s-a putut captura fotografia.");
+      if (!photo?.uri) throw new Error("Could not capture photo.");
 
       const screen = Dimensions.get("window");
       const screenW = screen.width;
@@ -121,7 +121,7 @@ export default function ScanScreen() {
       const cropW = Math.floor(FRAME_W * scaleX);
       const cropH = Math.floor(FRAME_H * scaleY);
 
-      setProcessingText("Procesez imaginea...");
+      setProcessingText("Processing image...");
       const cropped = await ImageManipulator.manipulateAsync(
         photo.uri,
         [{ crop: { originX: cropX, originY: cropY, width: cropW, height: cropH } }],
@@ -133,10 +133,10 @@ export default function ScanScreen() {
       const destUri = destDir + `poster_${Date.now()}.jpg`;
       await FileSystem.copyAsync({ from: cropped.uri, to: destUri });
 
-      setProcessingText("Calculez hash-ul...");
+      setProcessingText("Computing hash...");
       const hash = await computeHash(destUri);
 
-      setProcessingText("Recunosc afișul...");
+      setProcessingText("Recognizing poster...");
       const allPosters = await getAllPosters();
       let duplicate = null;
 
@@ -157,7 +157,7 @@ export default function ScanScreen() {
         });
       } else {
         const id = generateId();
-        const title = `Afiș ${new Date().toLocaleDateString("ro-RO")}`;
+        const title = `Poster ${new Date().toLocaleDateString("en-US")}`;
         await savePoster({
           id,
           imageUri: destUri,
@@ -170,10 +170,10 @@ export default function ScanScreen() {
         setNewPosterModal({ visible: true, posterId: id, posterTitle: title });
       }
     } catch (err: any) {
-      Alert.alert("Eroare", err?.message ?? "Ceva nu a funcționat.");
+      Alert.alert("Error", err?.message ?? "Something went wrong.");
     } finally {
       setProcessing(false);
-      setProcessingText("Analizez afișul...");
+      setProcessingText("Analyzing poster...");
     }
   }, [processing, router]);
 
@@ -189,10 +189,10 @@ export default function ScanScreen() {
     return (
       <View style={styles.center}>
         <Text style={styles.permText}>
-          Aplicația are nevoie de acces la cameră pentru a scana afișe.
+          The app needs camera access to scan posters.
         </Text>
         <TouchableOpacity style={styles.permBtn} onPress={requestPermission}>
-          <Text style={styles.permBtnText}>Acordă permisiune</Text>
+          <Text style={styles.permBtnText}>Grant permission</Text>
         </TouchableOpacity>
       </View>
     );
@@ -221,7 +221,7 @@ export default function ScanScreen() {
         <View style={styles.overlayBottom}>
           <Text style={styles.topLabel}>SCAN_TARGET</Text>
           <Text style={styles.hint}>
-            Centrează afișul în cadru și apasă butonul
+            Center the poster in frame and press the button
           </Text>
         </View>
 
@@ -250,18 +250,18 @@ export default function ScanScreen() {
             <View style={styles.successIconCircle}>
               <Text style={styles.successIconText}>✓</Text>
             </View>
-            <Text style={styles.alertTitle}>AFIȘ RECUNOSCUT</Text>
+            <Text style={styles.alertTitle}>POSTER RECOGNIZED</Text>
             <Text style={styles.alertMessage}>
-              Am găsit "{duplicateModal.posterTitle}". Ce vrei să faci?
+              We found "{duplicateModal.posterTitle}". What do you want to do?
             </Text>
             <TouchableOpacity style={styles.alertButton} onPress={handleDuplicateEdit}>
-              <Text style={styles.alertButtonText}>✏️ EDITEAZĂ</Text>
+              <Text style={styles.alertButtonText}>✏️ EDIT</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.alertDeleteButton} onPress={handleDuplicateDelete}>
-              <Text style={styles.alertButtonText}>🗑️ ȘTERGE</Text>
+              <Text style={styles.alertButtonText}>🗑️ DELETE</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.alertCancelButton} onPress={handleDuplicateCancel}>
-              <Text style={styles.alertCancelText}>ANULEAZĂ</Text>
+              <Text style={styles.alertCancelText}>CANCEL</Text>
             </TouchableOpacity>
           </BlurView>
         </View>
@@ -278,18 +278,18 @@ export default function ScanScreen() {
             <View style={styles.successIconCircle}>
               <Text style={styles.successIconText}>✓</Text>
             </View>
-            <Text style={styles.alertTitle}>AFIȘ NOU SALVAT</Text>
+            <Text style={styles.alertTitle}>NEW POSTER SAVED</Text>
             <Text style={styles.alertMessage}>
-              "{newPosterModal.posterTitle}" a fost adăugat în feed.
+              "{newPosterModal.posterTitle}" was added to the feed.
             </Text>
             <TouchableOpacity style={styles.alertButton} onPress={handleNewPosterAnnotate}>
-              <Text style={styles.alertButtonText}>✏️ ADNOTEAZĂ</Text>
+              <Text style={styles.alertButtonText}>✏️ ANNOTATE</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.alertNeutralButton} onPress={handleNewPosterFeed}>
               <Text style={styles.alertButtonText}>📋 FEED</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.alertCancelButton} onPress={handleNewPosterScanAnother}>
-              <Text style={styles.alertCancelText}>📷 SCANEAZĂ ALT AFIȘ</Text>
+              <Text style={styles.alertCancelText}>📷 SCAN ANOTHER POSTER</Text>
             </TouchableOpacity>
           </BlurView>
         </View>
