@@ -27,6 +27,20 @@ const { width: SCREEN_W } = Dimensions.get("window");
 const CARD_GAP = 12;
 const CARD_W = (SCREEN_W - CARD_GAP * 3) / 2;
 const CARD_H = CARD_W * 1.3;
+const CARD_IMAGE_H = CARD_H - 44;
+
+type GifSticker = {
+    id: string;
+    uri: string;
+    x: number;
+    y: number;
+    size: number;
+};
+
+type AnnotationPayload = {
+    paths: DrawPath[];
+    stickers: GifSticker[];
+};
 
 function pathsToD(points: { x: number; y: number }[]): string {
     if (points.length === 0) return "";
@@ -34,29 +48,122 @@ function pathsToD(points: { x: number; y: number }[]): string {
     return `M ${first.x} ${first.y} ` + rest.map((p) => `L ${p.x} ${p.y}`).join(" ");
 }
 
+function parseDrawPaths(raw: unknown): DrawPath[] {
+    if (Array.isArray(raw)) return raw as DrawPath[];
+    if (typeof raw !== "string") return [];
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? (parsed as DrawPath[]) : [];
+    } catch {
+        return [];
+    }
+}
+
+function parseAnnotationPayload(raw: unknown): AnnotationPayload {
+    const empty: AnnotationPayload = { paths: [], stickers: [] };
+    if (Array.isArray(raw)) return { paths: raw as DrawPath[], stickers: [] };
+    if (typeof raw !== "string") return empty;
+    try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return { paths: parsed as DrawPath[], stickers: [] };
+        if (parsed && typeof parsed === "object") {
+            return {
+                paths: Array.isArray((parsed as any).paths) ? (parsed as any).paths as DrawPath[] : [],
+                stickers: Array.isArray((parsed as any).stickers) ? (parsed as any).stickers as GifSticker[] : [],
+            };
+        }
+        return empty;
+    } catch {
+        return empty;
+    }
+}
+
+function normalizePathsForCard(
+    paths: DrawPath[],
+    targetW: number,
+    targetH: number
+): DrawPath[] {
+    if (paths.length === 0) return [];
+
+    const points = paths.flatMap((p) => p.points);
+    if (points.length === 0) return [];
+
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+
+    for (const pt of points) {
+        if (!Number.isFinite(pt.x) || !Number.isFinite(pt.y)) continue;
+        if (pt.x < minX) minX = pt.x;
+        if (pt.y < minY) minY = pt.y;
+        if (pt.x > maxX) maxX = pt.x;
+        if (pt.y > maxY) maxY = pt.y;
+    }
+
+    if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+        return paths;
+    }
+
+    const boxW = Math.max(1, maxX - minX);
+    const boxH = Math.max(1, maxY - minY);
+    const pad = 8;
+    const fitW = Math.max(1, targetW - pad * 2);
+    const fitH = Math.max(1, targetH - pad * 2);
+    const scale = Math.min(fitW / boxW, fitH / boxH);
+    const offsetX = (targetW - boxW * scale) / 2;
+    const offsetY = (targetH - boxH * scale) / 2;
+    const strokeScale = Math.max(0.8, Math.min(2.2, scale * 0.3));
+
+    return paths.map((path) => ({
+        ...path,
+        strokeWidth: path.strokeWidth * strokeScale,
+        points: path.points.map((pt) => ({
+            x: (pt.x - minX) * scale + offsetX,
+            y: (pt.y - minY) * scale + offsetY,
+        })),
+    }));
+}
+
 function PosterCard({ item, onPress, onLongPress }: {
     item: PosterEntry; onPress: () => void; onLongPress: () => void;
 }) {
-    let paths: DrawPath[] = [];
-    try { paths = JSON.parse(item.drawingData); } catch { }
+    const payload = parseAnnotationPayload(item.drawingData as unknown);
+    const paths = payload.paths;
+    const stickers = payload.stickers;
+    const normalizedPaths = normalizePathsForCard(paths, CARD_W, CARD_H - 44);
+    const totalAnnotations = normalizedPaths.length + stickers.length;
 
     return (
         <TouchableOpacity style={styles.card} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
             <Image source={{ uri: item.imageUri }} style={styles.cardImage} resizeMode="cover" />
-            {paths.length > 0 && (
+            {stickers.map((sticker) => {
+                const sizePx = Math.max(24, Math.min(CARD_W * 0.6, sticker.size * CARD_W));
+                const x = Math.max(0, Math.min(CARD_W - sizePx, sticker.x * CARD_W - sizePx / 2));
+                const y = Math.max(0, Math.min(CARD_IMAGE_H - sizePx, sticker.y * CARD_IMAGE_H - sizePx / 2));
+                return (
+                    <Image
+                        key={sticker.id}
+                        source={{ uri: sticker.uri }}
+                        style={[styles.cardSticker, { width: sizePx, height: sizePx, left: x, top: y }]}
+                        resizeMode="contain"
+                    />
+                );
+            })}
+            {normalizedPaths.length > 0 && (
                 <View style={StyleSheet.absoluteFill} pointerEvents="none">
-                    <Svg width={CARD_W} height={CARD_H - 44}>
-                        {paths.map((p, i) => (
+                    <Svg width={CARD_W} height={CARD_IMAGE_H}>
+                        {normalizedPaths.map((p, i) => (
                             <Path key={i} d={pathsToD(p.points)} stroke={p.color}
-                                strokeWidth={p.strokeWidth * 0.3} strokeLinecap="round"
+                                strokeWidth={p.strokeWidth} strokeLinecap="round"
                                 strokeLinejoin="round" fill="none" />
                         ))}
                     </Svg>
                 </View>
             )}
-            {paths.length > 0 && (
+            {totalAnnotations > 0 && (
                 <View style={styles.badge}>
-                    <Text style={styles.badgeText}>✏️ {paths.length}</Text>
+                    <Text style={styles.badgeText}>✏️ {totalAnnotations}</Text>
                 </View>
             )}
             <BlurView intensity={60} tint="dark" style={styles.cardFooter}>
@@ -235,6 +342,7 @@ const styles = StyleSheet.create({
         borderWidth: 1, borderColor: "rgba(0,122,255,0.2)", backgroundColor: "#111",
     },
     cardImage: { width: CARD_W, height: CARD_H - 44 },
+    cardSticker: { position: "absolute" },
     cardFooter: {
         height: 44, paddingHorizontal: 10, justifyContent: "center",
         backgroundColor: "rgba(0,0,0,0.5)", overflow: "hidden",
