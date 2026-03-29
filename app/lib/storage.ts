@@ -1,5 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
+import { isExactPosterDuplicate } from "./phash_v3";
+import { isSamePoster as isSamePosterLegacy } from "./phash";
 import { supabase } from "./supabase";
 
 export interface PosterEntry {
@@ -198,7 +200,7 @@ export async function findDuplicate(hash: string): Promise<PosterEntry | null> {
     all.find(
       (p) =>
         isExactPosterDuplicate(p.hash, hash) ||
-        isExactPosterDuplicateLegacy(p.hash, hash)
+        isSamePosterLegacy(p.hash, hash)
     ) ?? null
   );
 }

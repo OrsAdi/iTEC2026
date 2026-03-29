@@ -21,10 +21,6 @@ import {
   posterSimilarity,
 } from "./lib/phash_v3";
 import {
-  isExactPosterDuplicate as isExactPosterDuplicateLegacy,
-  posterSimilarity as posterSimilarityLegacy,
-} from "./lib/phash";
-import {
   deletePoster,
   generateId,
   getAllPosters,
@@ -50,7 +46,15 @@ export default function ScanScreen() {
     visible: boolean;
     posterId: string;
     posterTitle: string;
-  }>({ visible: false, posterId: "", posterTitle: "" });
+    similarPosterTitle: string;
+    similarityScore: number;
+  }>({
+    visible: false,
+    posterId: "",
+    posterTitle: "",
+    similarPosterTitle: "",
+    similarityScore: 0,
+  });
   const [facing] = useState<CameraType>("back");
   const cameraRef = useRef<CameraView>(null);
   const router = useRouter();
@@ -88,7 +92,13 @@ export default function ScanScreen() {
   // ── New poster modal handlers ───────────────────────────────────────────
 
   const closeNewPosterModal = useCallback(() => {
-    setNewPosterModal({ visible: false, posterId: "", posterTitle: "" });
+    setNewPosterModal({
+      visible: false,
+      posterId: "",
+      posterTitle: "",
+      similarPosterTitle: "",
+      similarityScore: 0,
+    });
   }, []);
 
   const handleNewPosterAnnotate = useCallback(() => {
@@ -176,15 +186,12 @@ export default function ScanScreen() {
         }
 
         const exactNow = isExactPosterDuplicate(candidateHash, hash);
-        const exactLegacy = isExactPosterDuplicateLegacy(candidateHash, hash);
-        if (exactNow || exactLegacy) {
+        if (exactNow) {
           exactDuplicate = poster;
           break;
         }
 
-        const scoreNow = posterSimilarity(candidateHash, hash);
-        const scoreLegacy = posterSimilarityLegacy(candidateHash, hash);
-        const score = Math.max(scoreNow, scoreLegacy);
+        const score = posterSimilarity(candidateHash, hash);
         if (score > bestScore) {
           bestScore = score;
           similarCandidate = poster;
@@ -225,7 +232,14 @@ export default function ScanScreen() {
           updatedAt: Date.now(),
           title,
         });
-        setNewPosterModal({ visible: true, posterId: id, posterTitle: title });
+        setNewPosterModal({
+          visible: true,
+          posterId: id,
+          posterTitle: title,
+          similarPosterTitle:
+            isVerySimilar && similarCandidate ? similarCandidate.title : "",
+          similarityScore: isVerySimilar ? bestScore : 0,
+        });
       }
     } catch (err: any) {
       Alert.alert("Eroare", err?.message ?? "Ceva nu a funcționat.");
