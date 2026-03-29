@@ -68,7 +68,7 @@ export default function AuthScreen() {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      showError("INPUT_ERROR", "Completează email și parola.");
+      showError("INPUT_ERROR", "Fill in email and password.");
       return;
     }
     setLoading(true);
@@ -79,11 +79,11 @@ export default function AuthScreen() {
 
   const handleSignUp = async () => {
     if (!email || !password) {
-      showError("INPUT_ERROR", "Completează email și parola.");
+      showError("INPUT_ERROR", "Fill in email and password.");
       return;
     }
     if (password.length < 6) {
-      showError("INPUT_ERROR", "Parola trebuie să aibă minim 6 caractere.");
+      showError("INPUT_ERROR", "Password must be at least 6 characters.");
       return;
     }
     setLoading(true);
@@ -94,11 +94,11 @@ export default function AuthScreen() {
     });
     setLoading(false);
     if (error) {
-      showError("EROARE", error.message);
+      showError("ERROR", error.message);
     } else {
       showSuccess(
-        "CONT_CREAT",
-        "Verifică email-ul pentru a confirma contul, apoi loghează-te."
+        "ACCOUNT_CREATED",
+        "Check your email to confirm your account, then sign in."
       );
     }
   };
@@ -171,7 +171,7 @@ export default function AuthScreen() {
                   disabled={loading}
                 >
                   <Text style={styles.loginButtonText}>
-                    {loading ? "SE PROCESEAZĂ..." : isSignUp ? "CREEAZĂ CONT" : "LOGIN"}
+                    {loading ? "PROCESSING..." : isSignUp ? "CREATE ACCOUNT" : "LOGIN"}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -179,7 +179,7 @@ export default function AuthScreen() {
               <View style={styles.footer}>
                 <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)}>
                   <Text style={styles.footerLink}>
-                    {isSignUp ? "Ai deja cont? Login" : "Nu ai cont? Request Access"}
+                    {isSignUp ? "Already have an account? Login" : "Don't have an account? Request Access"}
                   </Text>
                 </TouchableOpacity>
                 <Text style={styles.credits}>VER. 1.0.26 | iTEC OVERRIDE</Text>

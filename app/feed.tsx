@@ -127,6 +127,7 @@ function PosterCard({ item, onPress, onLongPress, currentUserId }: {
     const paths = payload.paths;
     const stickers = payload.stickers;
     const musicStickers = payload.musicStickers;
+    const isTeam = !!item.isTeamPoster && item.ownerId !== currentUserId;
     const normalizedPaths = normalizePathsForCard(paths, CARD_W, CARD_H - 44);
     const totalAnnotations = normalizedPaths.length + stickers.length + musicStickers.length;
 
@@ -192,8 +193,8 @@ function PosterCard({ item, onPress, onLongPress, currentUserId }: {
             <BlurView intensity={60} tint="dark" style={styles.cardFooter}>
                 <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
                 <Text style={styles.cardDate}>
-                    {new Date(item.createdAt).toLocaleDateString("ro-RO")}
-                    {isTeam ? " · echipă" : ""}
+                    {new Date(item.createdAt).toLocaleDateString("en-US")}
+                    {isTeam ? " · team" : ""}
                 </Text>
             </BlurView>
         </TouchableOpacity>

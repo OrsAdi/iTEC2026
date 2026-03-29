@@ -12,12 +12,12 @@ export default function BottomNav({ activeTab = "" }: { activeTab?: string }) {
 
   const leftTabs = [
     { key: "feed", icon: "home-outline", label: "Feed", route: "/feed" },
-    { key: "profile", icon: "person-outline", label: "Profil", route: "/profile" },
+    { key: "profile", icon: "person-outline", label: "Profile", route: "/profile" },
   ];
 
   const rightTabs = [
-    { key: "team", icon: "people-outline", label: "Echipă", route: "/team" },
-    { key: "settings", icon: "settings-outline", label: "Setări", route: "/settings" },
+    { key: "team", icon: "people-outline", label: "Team", route: "/team" },
+    { key: "settings", icon: "settings-outline", label: "Settings", route: "/settings" },
   ];
 
   return (
