@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -31,25 +32,28 @@ const CARD_H = CARD_W * 1.3;
 const CARD_IMAGE_H = CARD_H - 44;
 
 type GifSticker = { id: string; uri: string; x: number; y: number; size: number; };
-type AnnotationPayload = { paths: DrawPath[]; stickers: GifSticker[]; };
+type MusicSticker = { id: string; title: string; uri: string; x: number; y: number; size: number; };
+type AnnotationPayload = { paths: DrawPath[]; stickers: GifSticker[]; musicStickers: MusicSticker[]; };
 
 function pathsToD(points: { x: number; y: number }[]): string {
-    if (points.length === 0) return "";
+    if (!points || points.length === 0) return "";
     const [first, ...rest] = points;
     return `M ${first.x} ${first.y} ` + rest.map((p) => `L ${p.x} ${p.y}`).join(" ");
 }
 
 function parseAnnotationPayload(raw: unknown): AnnotationPayload {
-    const empty: AnnotationPayload = { paths: [], stickers: [] };
-    if (Array.isArray(raw)) return { paths: raw as DrawPath[], stickers: [] };
+    const empty: AnnotationPayload = { paths: [], stickers: [], musicStickers: [] };
+    if (!raw) return empty;
+    if (Array.isArray(raw)) return { paths: raw as DrawPath[], stickers: [], musicStickers: [] };
     if (typeof raw !== "string") return empty;
     try {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return { paths: parsed as DrawPath[], stickers: [] };
+        if (Array.isArray(parsed)) return { paths: parsed as DrawPath[], stickers: [], musicStickers: [] };
         if (parsed && typeof parsed === "object") {
             return {
                 paths: Array.isArray((parsed as any).paths) ? (parsed as any).paths as DrawPath[] : [],
                 stickers: Array.isArray((parsed as any).stickers) ? (parsed as any).stickers as GifSticker[] : [],
+                musicStickers: Array.isArray((parsed as any).musicStickers) ? (parsed as any).musicStickers as MusicSticker[] : [],
             };
         }
         return empty;
@@ -57,12 +61,12 @@ function parseAnnotationPayload(raw: unknown): AnnotationPayload {
 }
 
 function normalizePathsForCard(paths: DrawPath[], targetW: number, targetH: number): DrawPath[] {
-    if (paths.length === 0) return [];
-    const points = paths.flatMap((p) => p.points);
-    if (points.length === 0) return [];
+    if (!paths || paths.length === 0) return [];
+    const points = paths.flatMap((p) => p?.points ?? []);
+    if (!points || points.length === 0) return [];
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const pt of points) {
-        if (!isFinite(pt.x) || !isFinite(pt.y)) continue;
+        if (!pt || !isFinite(pt.x) || !isFinite(pt.y)) continue;
         if (pt.x < minX) minX = pt.x;
         if (pt.y < minY) minY = pt.y;
         if (pt.x > maxX) maxX = pt.x;
@@ -77,8 +81,8 @@ function normalizePathsForCard(paths: DrawPath[], targetW: number, targetH: numb
     const offsetY = (targetH - boxH * scale) / 2;
     return paths.map((path) => ({
         ...path,
-        strokeWidth: path.strokeWidth * Math.max(0.8, Math.min(2.2, scale * 0.3)),
-        points: path.points.map((pt) => ({
+        strokeWidth: (path.strokeWidth ?? 2) * Math.max(0.8, Math.min(2.2, scale * 0.3)),
+        points: (path?.points ?? []).map((pt) => ({
             x: (pt.x - minX) * scale + offsetX,
             y: (pt.y - minY) * scale + offsetY,
         })),
@@ -91,13 +95,13 @@ function PosterCard({ item, onPress, onLongPress, currentUserId }: {
     onLongPress: () => void;
     currentUserId: string | null;
 }) {
-    const payload = parseAnnotationPayload(item.drawingData as unknown);
-    const paths = payload.paths;
-    const stickers = payload.stickers;
-    const musicStickers = payload.musicStickers;
-    const isTeam = !!item.isTeamPoster && item.ownerId !== currentUserId;
-    const normalizedPaths = normalizePathsForCard(paths, CARD_W, CARD_H - 44);
+    const payload = parseAnnotationPayload(item?.drawingData ?? "[]");
+    const paths = payload?.paths ?? [];
+    const stickers = payload?.stickers ?? [];
+    const musicStickers = payload?.musicStickers ?? [];
+    const normalizedPaths = normalizePathsForCard(paths, CARD_W, CARD_IMAGE_H);
     const totalAnnotations = normalizedPaths.length + stickers.length + musicStickers.length;
+    const isTeam = item?.isTeamPoster === true && item?.ownerId !== currentUserId;
 
     return (
         <TouchableOpacity
@@ -118,6 +122,7 @@ function PosterCard({ item, onPress, onLongPress, currentUserId }: {
                         resizeMode="contain" />
                 );
             })}
+
             {musicStickers.map((music) => {
                 const widthPx = Math.max(64, Math.min(CARD_W * 0.9, music.size * CARD_W));
                 const x = Math.max(0, Math.min(CARD_W - widthPx, music.x * CARD_W - widthPx / 2));
@@ -129,6 +134,7 @@ function PosterCard({ item, onPress, onLongPress, currentUserId }: {
                     </View>
                 );
             })}
+
             {normalizedPaths.length > 0 && (
                 <View style={StyleSheet.absoluteFill} pointerEvents="none">
                     <Svg width={CARD_W} height={CARD_IMAGE_H}>
@@ -156,8 +162,8 @@ function PosterCard({ item, onPress, onLongPress, currentUserId }: {
             <BlurView intensity={60} tint="dark" style={styles.cardFooter}>
                 <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
                 <Text style={styles.cardDate}>
-                    {new Date(item.createdAt).toLocaleDateString("en-US")}
-                    {isTeam ? " · team" : ""}
+                    {new Date(item.createdAt).toLocaleDateString("ro-RO")}
+                    {isTeam ? " · echipă" : ""}
                 </Text>
             </BlurView>
         </TouchableOpacity>
@@ -177,11 +183,9 @@ export default function FeedScreen() {
     useFocusEffect(
         useCallback(() => {
             setLoading(true);
-
             supabase.auth.getSession().then(({ data }) => {
                 setCurrentUserId(data.session?.user?.id ?? null);
             });
-
             syncPostersFromSupabase().finally(() => {
                 getAllPosters().then((all) => {
                     const sorted = [...all].sort((a, b) => {
@@ -198,7 +202,6 @@ export default function FeedScreen() {
         }, [])
     );
 
-    // Real-time updates pentru feed
     useEffect(() => {
         const channel = supabase
             .channel("feed_realtime")
@@ -208,11 +211,9 @@ export default function FeedScreen() {
                 (payload) => {
                     const updatedId = payload.new?.id;
                     if (!updatedId) return;
-
                     const normalized = typeof payload.new?.drawing_data === "string"
                         ? payload.new.drawing_data
                         : JSON.stringify(payload.new?.drawing_data ?? []);
-
                     setPosters((prev) =>
                         prev.map((p) => p.id !== updatedId ? p : { ...p, drawingData: normalized })
                     );
@@ -222,7 +223,6 @@ export default function FeedScreen() {
                 "postgres_changes",
                 { event: "INSERT", schema: "public", table: "posters" },
                 async () => {
-                    // Nou afiș adăugat de coleg — resync
                     await syncPostersFromSupabase();
                     const all = await getAllPosters();
                     const sorted = [...all].sort((a, b) => {
@@ -247,10 +247,7 @@ export default function FeedScreen() {
             .subscribe();
 
         channelRef.current = channel;
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        return () => { supabase.removeChannel(channel); };
     }, []);
 
     const handleDeleteRequest = useCallback((id: string, title: string) => {
@@ -338,7 +335,7 @@ export default function FeedScreen() {
                             </View>
                             <Text style={styles.alertTitle}>DELETE POSTER</Text>
                             <Text style={styles.alertMessage}>
-                                <Text style={styles.alertMessage}>{`Remove "${deleteModal.title}" from the system?`}</Text>
+                                {`Remove "${deleteModal.title}" from the system?`}
                             </Text>
                             <View style={styles.alertActions}>
                                 <TouchableOpacity style={styles.alertCancelButton} onPress={closeDeleteModal}>
@@ -413,6 +410,13 @@ const styles = StyleSheet.create({
         borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2,
     },
     teamBadgeText: { fontSize: 12 },
+    musicSticker: {
+        position: "absolute",
+        backgroundColor: "rgba(109,40,217,0.82)",
+        borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3,
+        flexDirection: "row", alignItems: "center", gap: 4,
+    },
+    musicStickerText: { color: "#fff", fontSize: 9, fontWeight: "700", flex: 1 },
     modalOverlay: {
         position: "absolute", top: 0, right: 0, bottom: 0, left: 0,
         backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", alignItems: "center",

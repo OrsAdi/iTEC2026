@@ -740,26 +740,6 @@ export default function DrawScreen() {
     }
   }, [aiStickerPromptInput, appendSticker]);
 
-  const addMusicSticker = useCallback((uri: string, title: string, durationSec: number) => {
-    const clean = uri.trim();
-    if (!clean) return;
-    const newSticker: MusicSticker = {
-      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      title: title.trim() || "Track",
-      uri: clean,
-      x: 0.5,
-      y: 0.62,
-      size: 0.34,
-      startSec: 0,
-      durationSec: Math.max(3, Math.min(20, durationSec || 8)),
-    };
-    setMusicStickers((prev) => [...prev, newSticker]);
-    setSelectedMusicId(newSticker.id);
-    setSelectedStickerId(null);
-    setIsStickerMode(true);
-    setMusicPickerVisible(false);
-    setMusicDurationInput("8");
-  }, []);
 
   const setPosterBackgroundMusic = useCallback((uri: string, title: string, durationSec: number) => {
     const clean = uri.trim();

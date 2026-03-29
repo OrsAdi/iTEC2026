@@ -13,6 +13,9 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import AppBackground from "./components/AppBackground";
+import BottomNav from "./components/BottomNav";
+import { getAllPosters } from "./lib/storage";
 import { supabase } from "./lib/supabase";
 
 interface Profile {

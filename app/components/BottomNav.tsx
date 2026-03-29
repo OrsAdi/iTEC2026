@@ -7,64 +7,45 @@ export default function BottomNav({ activeTab = "" }: { activeTab?: string }) {
   const router = useRouter();
 
   const getColor = (key: string) => {
-    return activeTab === key ? "#007AFF" : "#555";
+    if (activeTab === key) return "#007AFF";
+    if (key === "feed") return "#555";
+    return "rgba(0,122,255,0.5)";
   };
 
   const leftTabs = [
     { key: "feed", icon: "home-outline", label: "Feed", route: "/feed" },
-    { key: "profile", icon: "person-outline", label: "Profile", route: "/profile" },
+    { key: "profile", icon: "person-outline", label: "Profil", route: "/profile" },
   ];
 
   const rightTabs = [
-    { key: "team", icon: "people-outline", label: "Team", route: "/team" },
-    { key: "settings", icon: "settings-outline", label: "Settings", route: "/settings" },
+    { key: "team", icon: "people-outline", label: "Echipă", route: "/team" },
+    { key: "settings", icon: "settings-outline", label: "Setări", route: "/settings" },
   ];
 
   return (
     <View style={styles.wrapper}>
       <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
       <View style={styles.borderTop} />
-
       <View style={styles.content}>
-        {/* Stânga */}
         <View style={styles.side}>
           {leftTabs.map((t) => (
-            <TouchableOpacity
-              key={t.key}
-              style={styles.tab}
-              activeOpacity={0.7}
-              onPress={() => router.push(t.route as any)}
-            >
+            <TouchableOpacity key={t.key} style={styles.tab} activeOpacity={0.7} onPress={() => router.push(t.route as any)}>
               <Ionicons name={t.icon as any} size={22} color={getColor(t.key)} />
               <Text style={[styles.label, { color: getColor(t.key) }]}>{t.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
-
         <View style={styles.centerSpace} />
-
-        {/* Dreapta */}
         <View style={styles.side}>
           {rightTabs.map((t) => (
-            <TouchableOpacity
-              key={t.key}
-              style={styles.tab}
-              activeOpacity={0.7}
-              onPress={() => router.push(t.route as any)}
-            >
+            <TouchableOpacity key={t.key} style={styles.tab} activeOpacity={0.7} onPress={() => router.push(t.route as any)}>
               <Ionicons name={t.icon as any} size={22} color={getColor(t.key)} />
               <Text style={[styles.label, { color: getColor(t.key) }]}>{t.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
       </View>
-
-      {/* Buton Scan */}
-      <TouchableOpacity
-        style={styles.scanBtn}
-        activeOpacity={0.85}
-        onPress={() => router.push("/scan")}
-      >
+      <TouchableOpacity style={styles.scanBtn} activeOpacity={0.85} onPress={() => router.push("/scan")}>
         <View style={styles.scanCircle}>
           <Ionicons name="camera" size={28} color="#fff" />
         </View>
@@ -78,19 +59,13 @@ const NAVBAR_H = 75;
 const SCAN_SIZE = 60;
 
 const styles = StyleSheet.create({
-  wrapper: {
-    position: "absolute", left: 0, right: 0, bottom: 0, height: NAVBAR_H,
-  },
+  wrapper: { position: "absolute", left: 0, right: 0, bottom: 0, height: NAVBAR_H },
   borderTop: {
     position: "absolute", top: 0, left: 0, right: 0, height: 1,
     backgroundColor: "rgba(0,122,255,0.3)", zIndex: 2,
   },
-  content: {
-    flex: 1, flexDirection: "row", alignItems: "center", paddingBottom: 8,
-  },
-  side: {
-    flex: 1, flexDirection: "row", justifyContent: "space-around", alignItems: "center",
-  },
+  content: { flex: 1, flexDirection: "row", alignItems: "center", paddingBottom: 8 },
+  side: { flex: 1, flexDirection: "row", justifyContent: "space-around", alignItems: "center" },
   centerSpace: { width: SCAN_SIZE + 16 },
   tab: { alignItems: "center", justifyContent: "center", flex: 1, paddingTop: 8 },
   label: { fontSize: 9, marginTop: 3, letterSpacing: 0.5 },
