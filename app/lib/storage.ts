@@ -1,7 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import { isSamePoster as isSamePosterLegacy } from "./phash";
-import { isExactPosterDuplicate } from "./phash_v3";
 import { supabase } from "./supabase";
 
 export interface PosterEntry {
@@ -12,6 +11,8 @@ export interface PosterEntry {
   createdAt: number;
   updatedAt: number;
   title: string;
+  ownerId?: string;
+  isTeamPoster?: boolean;
 }
 
 export interface DrawPath {
@@ -23,8 +24,6 @@ export interface DrawPath {
 const INDEX_KEY = "poster_index";
 const PREFIX = "poster:";
 
-// ─── Local helpers ─────────────────────────────────────────────────────────
-
 async function getIndex(): Promise<string[]> {
   const raw = await AsyncStorage.getItem(INDEX_KEY);
   return raw ? JSON.parse(raw) : [];
@@ -34,11 +33,18 @@ async function setIndex(ids: string[]): Promise<void> {
   await AsyncStorage.setItem(INDEX_KEY, JSON.stringify(ids));
 }
 
-// ─── Supabase helpers ──────────────────────────────────────────────────────
-
 async function getCurrentUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
   return data.session?.user?.id ?? null;
+}
+
+async function getTeamId(userId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("team_members")
+    .select("team_id")
+    .eq("user_id", userId)
+    .limit(1);
+  return data?.[0]?.team_id ?? null;
 }
 
 async function uploadImageToSupabase(
@@ -88,21 +94,19 @@ function decode(base64: string): Uint8Array {
   return new Uint8Array(bytes);
 }
 
-// ─── CRUD ──────────────────────────────────────────────────────────────────
-
 export async function savePoster(entry: PosterEntry): Promise<void> {
-  // Salvează local
   const ids = await getIndex();
   const alreadyExists = ids.includes(entry.id);
-  if (!ids.includes(entry.id)) {
+  if (!alreadyExists) {
     ids.push(entry.id);
     await setIndex(ids);
   }
   await AsyncStorage.setItem(PREFIX + entry.id, JSON.stringify(entry));
 
-  // Sincronizează cu Supabase în background
   const userId = await getCurrentUserId();
   if (!userId) return;
+
+  const teamId = await getTeamId(userId);
 
   const isRemoteImage = /^https?:\/\//i.test(entry.imageUri);
   const shouldUploadOriginal = !alreadyExists && !isRemoteImage;
@@ -113,6 +117,7 @@ export async function savePoster(entry: PosterEntry): Promise<void> {
   await supabase.from("posters").upsert({
     id: entry.id,
     user_id: userId,
+    team_id: teamId,
     image_url: imageUrl ?? entry.imageUri,
     hash: entry.hash,
     drawing_data: entry.drawingData,
@@ -204,11 +209,34 @@ export async function syncPostersFromSupabase(): Promise<void> {
     const userId = await getCurrentUserId();
     if (!userId) return;
 
-    const { data, error } = await supabase
+    const teamId = await getTeamId(userId);
+    console.log("🔵 userId:", userId);
+    console.log("🟢 teamId:", teamId);
+
+    // Actualizează afișele proprii fără team_id
+    if (teamId) {
+      await supabase
+        .from("posters")
+        .update({ team_id: teamId })
+        .eq("user_id", userId)
+        .is("team_id", null);
+    }
+
+    // Fetch afișele proprii + ale echipei
+    let query = supabase
       .from("posters")
       .select("*")
-      .eq("user_id", userId)
       .order("created_at", { ascending: false });
+
+    if (teamId) {
+      query = query.or(`user_id.eq.${userId},team_id.eq.${teamId}`);
+    } else {
+      query = query.eq("user_id", userId);
+    }
+
+    const { data, error } = await query;
+    console.log("📦 Posters fetched:", data?.length ?? 0);
+    console.log("❌ Error:", JSON.stringify(error));
 
     if (error || !data) return;
 
@@ -217,7 +245,6 @@ export async function syncPostersFromSupabase(): Promise<void> {
       const localEntry = await getPoster(poster.id);
       const remoteUpdatedAt = new Date(poster.updated_at).getTime();
 
-      // Păstrează local dacă e mai nou
       if (localEntry && localEntry.updatedAt > remoteUpdatedAt) {
         ids.push(localEntry.id);
         await AsyncStorage.setItem(PREFIX + localEntry.id, JSON.stringify(localEntry));
@@ -232,32 +259,27 @@ export async function syncPostersFromSupabase(): Promise<void> {
       const entry: PosterEntry = {
         id: poster.id,
         imageUri: poster.image_url,
-        // ← FIX: păstrează hash-ul local original dacă există
-        // hash-ul trebuie să rămână cel calculat pe imaginea originală
-        // nu pe cea adnotată uploadată în Supabase
         hash: localEntry?.hash ?? poster.hash,
         drawingData: normalizedDrawingData,
         title: poster.title,
         createdAt: new Date(poster.created_at).getTime(),
         updatedAt: remoteUpdatedAt,
+        ownerId: poster.user_id,
+        isTeamPoster: poster.user_id !== userId,
       };
       ids.push(entry.id);
       await AsyncStorage.setItem(PREFIX + entry.id, JSON.stringify(entry));
     }
     await setIndex(ids);
+    console.log("✅ Sync complet, afișe salvate:", ids.length);
   } catch (e) {
     console.log("Sync error:", e);
   }
 }
+
 export async function findDuplicate(hash: string): Promise<PosterEntry | null> {
   const all = await getAllPosters();
-  return (
-    all.find(
-      (p) =>
-        isExactPosterDuplicate(p.hash, hash) ||
-        isSamePosterLegacy(p.hash, hash)
-    ) ?? null
-  );
+  return all.find((p) => isSamePosterLegacy(p.hash, hash)) ?? null;
 }
 
 export function generateId(): string {
