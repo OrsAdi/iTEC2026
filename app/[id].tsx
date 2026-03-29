@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -17,6 +18,8 @@ import {
   GestureHandlerRootView,
 } from "react-native-gesture-handler";
 import Svg, { Path } from "react-native-svg";
+import ViewShot from "react-native-view-shot";
+import { supabase } from "./lib/supabase";
 
 import type { PosterEntry } from "./lib/storage";
 import {
@@ -47,6 +50,54 @@ function pathsToD(points: { x: number; y: number }[]): string {
   );
 }
 
+async function uploadAnnotatedImage(
+  localUri: string,
+  posterId: string,
+): Promise<string | null> {
+  try {
+    const { data: session } = await supabase.auth.getSession();
+    const userId = session.session?.user?.id;
+    if (!userId) return null;
+
+    const base64 = await FileSystem.readAsStringAsync(localUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    const chars =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const lookup: Record<string, number> = {};
+    for (let i = 0; i < chars.length; i++) lookup[chars[i]] = i;
+    const clean = base64.replace(/[^A-Za-z0-9+/]/g, "");
+    const bytes: number[] = [];
+    for (let i = 0; i < clean.length; i += 4) {
+      const b0 = lookup[clean[i]] ?? 0;
+      const b1 = lookup[clean[i + 1]] ?? 0;
+      const b2 = lookup[clean[i + 2]] ?? 0;
+      const b3 = lookup[clean[i + 3]] ?? 0;
+      bytes.push((b0 << 2) | (b1 >> 4));
+      bytes.push(((b1 & 0xf) << 4) | (b2 >> 2));
+      bytes.push(((b2 & 0x3) << 6) | b3);
+    }
+    const uint8 = new Uint8Array(bytes);
+
+    // Upload cu suffix _annotated ca să nu suprascrie originalul
+    const filePath = `${userId}/${posterId}_annotated.jpg`;
+    const { error } = await supabase.storage
+      .from("posters")
+      .upload(filePath, uint8, {
+        contentType: "image/jpeg",
+        upsert: true,
+      });
+
+    if (error) return null;
+
+    const { data } = supabase.storage.from("posters").getPublicUrl(filePath);
+    return data.publicUrl;
+  } catch {
+    return null;
+  }
+}
+
 export default function DrawScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -59,9 +110,9 @@ export default function DrawScreen() {
   const [activeColor, setActiveColor] = useState(COLORS[0]);
   const [activeWidth, setActiveWidth] = useState(STROKE_WIDTHS[1]);
   const currentPoints = useRef<{ x: number; y: number }[]>([]);
-
   const activeColorRef = useRef(activeColor);
   const activeWidthRef = useRef(activeWidth);
+  const viewShotRef = useRef<ViewShot>(null);
 
   useEffect(() => {
     activeColorRef.current = activeColor;
@@ -99,12 +150,14 @@ export default function DrawScreen() {
     .onEnd(() => {
       const completed = [...currentPoints.current];
       if (completed.length > 0) {
-        const newPath: DrawPath = {
-          points: completed,
-          color: activeColorRef.current,
-          strokeWidth: activeWidthRef.current,
-        };
-        setPaths((prev) => [...prev, newPath]);
+        setPaths((prev) => [
+          ...prev,
+          {
+            points: completed,
+            color: activeColorRef.current,
+            strokeWidth: activeWidthRef.current,
+          },
+        ]);
       }
       currentPoints.current = [];
       setLivePoints([]);
@@ -116,20 +169,23 @@ export default function DrawScreen() {
   );
 
   const handleClear = useCallback(() => {
-    Alert.alert("Șterge adnotările?", "Vrei să elimini toate desenele?", [
-      { text: "Anulează", style: "cancel" },
-      { text: "Șterge", style: "destructive", onPress: () => setPaths([]) },
-    ]);
+    Alert.alert(
+      "Remove the annotations?",
+      "Do you want to delete all drawings?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => setPaths([]) },
+      ],
+    );
   }, []);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
       "DELETE_POSTER",
-      `Vrei să ștergi afișul "${poster?.title}" din feed?`,
+      `Do you want to delete the poster "${poster?.title}" from the feed?`,
       [
-        { text: "CANCEL", style: "cancel" },
+        { text: "Cancel", style: "cancel" },
         {
-          text: "DELETE",
           style: "destructive",
           onPress: async () => {
             if (!id) return;
@@ -145,12 +201,40 @@ export default function DrawScreen() {
     if (!id) return;
     setSaving(true);
     try {
+      // 1. Salvează drawing data în storage
       await updateDrawing(id, JSON.stringify(paths));
-      Alert.alert("Salvat! ✅", "Adnotările au fost salvate.", [
+
+      // 2. Capturează canvas-ul (imagine + desen) cu ViewShot
+      let annotatedUrl: string | null = null;
+      if (viewShotRef.current?.capture) {
+        const capturedUri = await viewShotRef.current.capture();
+
+        // 3. Copiază în folderul local
+        const destDir = FileSystem.documentDirectory + "posters/";
+        await FileSystem.makeDirectoryAsync(destDir, { intermediates: true });
+        const destUri = destDir + `poster_${id}_annotated.jpg`;
+        await FileSystem.copyAsync({ from: capturedUri, to: destUri });
+
+        // 4. Uploadează imaginea cu desen în Supabase
+        annotatedUrl = await uploadAnnotatedImage(destUri, id);
+
+        // 5. Actualizează imageUri local cu imaginea adnotată
+        if (annotatedUrl) {
+          await supabase
+            .from("posters")
+            .update({
+              image_url: annotatedUrl,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", id);
+        }
+      }
+
+      Alert.alert("Saved! ✅", "The annotations have been saved.", [
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch {
-      Alert.alert("Eroare", "Nu s-a putut salva.");
+      Alert.alert("Error", "Could not save the annotations.");
     } finally {
       setSaving(false);
     }
@@ -162,10 +246,11 @@ export default function DrawScreen() {
         <ActivityIndicator size="large" color="#007AFF" />
       </View>
     );
+
   if (!poster)
     return (
       <View style={styles.center}>
-        <Text style={{ color: "#fff" }}>Afișul nu a fost găsit.</Text>
+        <Text style={{ color: "#fff" }}>The poster was not found.</Text>
       </View>
     );
 
@@ -178,9 +263,8 @@ export default function DrawScreen() {
             onPress={() => router.back()}
             style={styles.backBtn}
           >
-            <Text style={styles.backBtnText}>← Înapoi</Text>
+            <Text style={styles.backBtnText}>← Back</Text>
           </TouchableOpacity>
-
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle} numberOfLines={1}>
               {poster.title}
@@ -189,7 +273,6 @@ export default function DrawScreen() {
               {new Date(poster.createdAt).toLocaleDateString("ro-RO")}
             </Text>
           </View>
-
           <View style={styles.headerActions}>
             <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
               <Ionicons name="trash-outline" size={20} color="#ef4444" />
@@ -208,9 +291,13 @@ export default function DrawScreen() {
           </View>
         </View>
 
-        {/* Canvas */}
+        {/* Canvas cu ViewShot pentru captură */}
         <GestureDetector gesture={panGesture}>
-          <View style={styles.canvasContainer}>
+          <ViewShot
+            ref={viewShotRef}
+            style={styles.canvasContainer}
+            options={{ format: "jpg", quality: 0.9 }}
+          >
             <Image
               source={{ uri: poster.imageUri }}
               style={styles.posterImage}
@@ -239,7 +326,7 @@ export default function DrawScreen() {
                 />
               )}
             </Svg>
-          </View>
+          </ViewShot>
         </GestureDetector>
 
         {/* Toolbar */}
