@@ -34,21 +34,79 @@ function pathsToD(points: { x: number; y: number }[]): string {
     return `M ${first.x} ${first.y} ` + rest.map((p) => `L ${p.x} ${p.y}`).join(" ");
 }
 
+function parseDrawPaths(raw: unknown): DrawPath[] {
+    if (Array.isArray(raw)) return raw as DrawPath[];
+    if (typeof raw !== "string") return [];
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? (parsed as DrawPath[]) : [];
+    } catch {
+        return [];
+    }
+}
+
+function normalizePathsForCard(
+    paths: DrawPath[],
+    targetW: number,
+    targetH: number
+): DrawPath[] {
+    if (paths.length === 0) return [];
+
+    const points = paths.flatMap((p) => p.points);
+    if (points.length === 0) return [];
+
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+
+    for (const pt of points) {
+        if (!Number.isFinite(pt.x) || !Number.isFinite(pt.y)) continue;
+        if (pt.x < minX) minX = pt.x;
+        if (pt.y < minY) minY = pt.y;
+        if (pt.x > maxX) maxX = pt.x;
+        if (pt.y > maxY) maxY = pt.y;
+    }
+
+    if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+        return paths;
+    }
+
+    const boxW = Math.max(1, maxX - minX);
+    const boxH = Math.max(1, maxY - minY);
+    const pad = 8;
+    const fitW = Math.max(1, targetW - pad * 2);
+    const fitH = Math.max(1, targetH - pad * 2);
+    const scale = Math.min(fitW / boxW, fitH / boxH);
+    const offsetX = (targetW - boxW * scale) / 2;
+    const offsetY = (targetH - boxH * scale) / 2;
+    const strokeScale = Math.max(0.8, Math.min(2.2, scale * 0.3));
+
+    return paths.map((path) => ({
+        ...path,
+        strokeWidth: path.strokeWidth * strokeScale,
+        points: path.points.map((pt) => ({
+            x: (pt.x - minX) * scale + offsetX,
+            y: (pt.y - minY) * scale + offsetY,
+        })),
+    }));
+}
+
 function PosterCard({ item, onPress, onLongPress }: {
     item: PosterEntry; onPress: () => void; onLongPress: () => void;
 }) {
-    let paths: DrawPath[] = [];
-    try { paths = JSON.parse(item.drawingData); } catch { }
+    const paths = parseDrawPaths(item.drawingData as unknown);
+    const normalizedPaths = normalizePathsForCard(paths, CARD_W, CARD_H - 44);
 
     return (
         <TouchableOpacity style={styles.card} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
             <Image source={{ uri: item.imageUri }} style={styles.cardImage} resizeMode="cover" />
-            {paths.length > 0 && (
+            {normalizedPaths.length > 0 && (
                 <View style={StyleSheet.absoluteFill} pointerEvents="none">
                     <Svg width={CARD_W} height={CARD_H - 44}>
-                        {paths.map((p, i) => (
+                        {normalizedPaths.map((p, i) => (
                             <Path key={i} d={pathsToD(p.points)} stroke={p.color}
-                                strokeWidth={p.strokeWidth * 0.3} strokeLinecap="round"
+                                strokeWidth={p.strokeWidth} strokeLinecap="round"
                                 strokeLinejoin="round" fill="none" />
                         ))}
                     </Svg>

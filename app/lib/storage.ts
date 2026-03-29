@@ -93,6 +93,7 @@ function decode(base64: string): Uint8Array {
 export async function savePoster(entry: PosterEntry): Promise<void> {
   // Salvează local
   const ids = await getIndex();
+  const alreadyExists = ids.includes(entry.id);
   if (!ids.includes(entry.id)) {
     ids.push(entry.id);
     await setIndex(ids);
@@ -103,7 +104,11 @@ export async function savePoster(entry: PosterEntry): Promise<void> {
   const userId = await getCurrentUserId();
   if (!userId) return;
 
-  const imageUrl = await uploadImageToSupabase(entry.imageUri, entry.id);
+  const isRemoteImage = /^https?:\/\//i.test(entry.imageUri);
+  const shouldUploadOriginal = !alreadyExists && !isRemoteImage;
+  const imageUrl = shouldUploadOriginal
+    ? await uploadImageToSupabase(entry.imageUri, entry.id)
+    : null;
 
   await supabase.from("posters").upsert({
     id: entry.id,
@@ -149,6 +154,39 @@ export async function updateDrawing(
     .eq("id", id);
 }
 
+export async function resetPosterToOriginal(id: string): Promise<string | null> {
+  const entry = await getPoster(id);
+  if (!entry) return null;
+
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    entry.drawingData = "[]";
+    entry.updatedAt = Date.now();
+    await AsyncStorage.setItem(PREFIX + id, JSON.stringify(entry));
+    return entry.imageUri;
+  }
+
+  const originalPath = `${userId}/${id}.jpg`;
+  const { data } = supabase.storage.from("posters").getPublicUrl(originalPath);
+  const originalImageUrl = data.publicUrl;
+
+  entry.drawingData = "[]";
+  entry.imageUri = originalImageUrl;
+  entry.updatedAt = Date.now();
+  await AsyncStorage.setItem(PREFIX + id, JSON.stringify(entry));
+
+  await supabase
+    .from("posters")
+    .update({
+      drawing_data: "[]",
+      image_url: originalImageUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  return originalImageUrl;
+}
+
 export async function deletePoster(id: string): Promise<void> {
   const ids = await getIndex();
   await setIndex(ids.filter((i) => i !== id));
@@ -176,14 +214,29 @@ export async function syncPostersFromSupabase(): Promise<void> {
 
     const ids: string[] = [];
     for (const poster of data) {
+      const localEntry = await getPoster(poster.id);
+      const remoteUpdatedAt = new Date(poster.updated_at).getTime();
+
+      // Keep local state if it is newer than remote (prevents losing recent edits in feed).
+      if (localEntry && localEntry.updatedAt > remoteUpdatedAt) {
+        ids.push(localEntry.id);
+        await AsyncStorage.setItem(PREFIX + localEntry.id, JSON.stringify(localEntry));
+        continue;
+      }
+
+      const normalizedDrawingData =
+        typeof poster.drawing_data === "string"
+          ? poster.drawing_data
+          : JSON.stringify(poster.drawing_data ?? []);
+
       const entry: PosterEntry = {
         id: poster.id,
         imageUri: poster.image_url,
         hash: poster.hash,
-        drawingData: poster.drawing_data,
+        drawingData: normalizedDrawingData,
         title: poster.title,
         createdAt: new Date(poster.created_at).getTime(),
-        updatedAt: new Date(poster.updated_at).getTime(),
+        updatedAt: remoteUpdatedAt,
       };
       ids.push(entry.id);
       await AsyncStorage.setItem(PREFIX + entry.id, JSON.stringify(entry));

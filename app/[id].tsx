@@ -25,9 +25,9 @@ import { supabase } from "./lib/supabase";
 
 import type { PosterEntry } from "./lib/storage";
 import {
-  deletePoster,
   DrawPath,
   getPoster,
+  resetPosterToOriginal,
   updateDrawing,
 } from "./lib/storage";
 
@@ -41,6 +41,17 @@ function pathsToD(points: { x: number; y: number }[]): string {
   if (points.length === 0) return "";
   const [first, ...rest] = points;
   return `M ${first.x} ${first.y} ` + rest.map((p) => `L ${p.x} ${p.y}`).join(" ");
+}
+
+function parseDrawPaths(raw: unknown): DrawPath[] {
+  if (Array.isArray(raw)) return raw as DrawPath[];
+  if (typeof raw !== "string") return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as DrawPath[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 async function uploadAnnotatedImage(
@@ -117,7 +128,7 @@ export default function DrawScreen() {
     getPoster(id).then((entry) => {
       if (entry) {
         setPoster(entry);
-        try { setPaths(JSON.parse(entry.drawingData)); } catch { setPaths([]); }
+        setPaths(parseDrawPaths(entry.drawingData as unknown));
       }
       setLoading(false);
     });
@@ -167,40 +178,29 @@ export default function DrawScreen() {
       setDeleteConfirmVisible(false);
       return;
     }
-    await deletePoster(id);
-    setDeleteConfirmVisible(false);
-    router.replace("/feed");
-  }, [id, router]);
+    try {
+      const originalImageUri = await resetPosterToOriginal(id);
+      setPaths([]);
+      if (originalImageUri) {
+        setPoster((prev) => (prev ? {
+          ...prev,
+          imageUri: originalImageUri,
+          drawingData: "[]",
+          updatedAt: Date.now(),
+        } : prev));
+      }
+      setDeleteConfirmVisible(false);
+    } catch {
+      Alert.alert("Eroare", "Nu s-au putut șterge adnotările.");
+    }
+  }, [id]);
 
   const handleSave = useCallback(async () => {
     if (!id) return;
     setSaving(true);
     try {
-      // 1. Salvează drawing data în storage
+      // Salvează doar adnotările; imaginea de bază rămâne cea inițială.
       await updateDrawing(id, JSON.stringify(paths));
-
-      // 2. Capturează canvas-ul (imagine + desen) cu ViewShot
-      let annotatedUrl: string | null = null;
-      if (viewShotRef.current?.capture) {
-        const capturedUri = await viewShotRef.current.capture();
-
-        // 3. Copiază în folderul local
-        const destDir = FileSystem.documentDirectory + "posters/";
-        await FileSystem.makeDirectoryAsync(destDir, { intermediates: true });
-        const destUri = destDir + `poster_${id}_annotated.jpg`;
-        await FileSystem.copyAsync({ from: capturedUri, to: destUri });
-
-        // 4. Uploadează imaginea cu desen în Supabase
-        annotatedUrl = await uploadAnnotatedImage(destUri, id);
-
-        // 5. Actualizează imageUri local cu imaginea adnotată
-        if (annotatedUrl) {
-          await supabase
-            .from("posters")
-            .update({ image_url: annotatedUrl, updated_at: new Date().toISOString() })
-            .eq("id", id);
-        }
-      }
 
       setSaveSuccessVisible(true);
     } catch {
@@ -208,7 +208,7 @@ export default function DrawScreen() {
     } finally {
       setSaving(false);
     }
-  }, [id, paths, router]);
+  }, [id, paths]);
 
   if (loading) return (
     <View style={styles.center}>
@@ -371,12 +371,12 @@ export default function DrawScreen() {
               <View style={styles.deleteIconCircle}>
                 <Text style={styles.deleteIconText}>!</Text>
               </View>
-              <Text style={styles.alertTitle}>DELETE POSTER</Text>
+              <Text style={styles.alertTitle}>DELETE ALL NOTES</Text>
               <Text style={styles.alertMessage}>
-                Vrei să ștergi afișul "{poster?.title}" din feed?
+                Vrei să ștergi toate adnotările salvate de pe "{poster?.title}"?
               </Text>
               <TouchableOpacity style={styles.alertDeleteButton} onPress={handleConfirmDelete}>
-                <Text style={styles.alertButtonText}>DELETE</Text>
+                <Text style={styles.alertButtonText}>DELETE ALL</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.alertCancelButton}
