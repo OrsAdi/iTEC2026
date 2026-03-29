@@ -3,10 +3,10 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     Dimensions,
     FlatList,
     Image,
+    Modal,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -29,185 +29,258 @@ const CARD_W = (SCREEN_W - CARD_GAP * 3) / 2;
 const CARD_H = CARD_W * 1.3;
 
 function pathsToD(points: { x: number; y: number }[]): string {
-  if (points.length === 0) return "";
-  const [first, ...rest] = points;
-  return `M ${first.x} ${first.y} ` + rest.map((p) => `L ${p.x} ${p.y}`).join(" ");
+    if (points.length === 0) return "";
+    const [first, ...rest] = points;
+    return `M ${first.x} ${first.y} ` + rest.map((p) => `L ${p.x} ${p.y}`).join(" ");
 }
 
 function PosterCard({ item, onPress, onLongPress }: {
-  item: PosterEntry; onPress: () => void; onLongPress: () => void;
+    item: PosterEntry; onPress: () => void; onLongPress: () => void;
 }) {
-  let paths: DrawPath[] = [];
-  try { paths = JSON.parse(item.drawingData); } catch {}
+    let paths: DrawPath[] = [];
+    try { paths = JSON.parse(item.drawingData); } catch { }
 
-  return (
-    <TouchableOpacity style={styles.card} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
-      <Image source={{ uri: item.imageUri }} style={styles.cardImage} resizeMode="cover" />
-      {paths.length > 0 && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          <Svg width={CARD_W} height={CARD_H - 44}>
-            {paths.map((p, i) => (
-              <Path key={i} d={pathsToD(p.points)} stroke={p.color}
-                strokeWidth={p.strokeWidth * 0.3} strokeLinecap="round"
-                strokeLinejoin="round" fill="none" />
-            ))}
-          </Svg>
-        </View>
-      )}
-      {paths.length > 0 && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>✏️ {paths.length}</Text>
-        </View>
-      )}
-      <BlurView intensity={60} tint="dark" style={styles.cardFooter}>
-        <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-        <Text style={styles.cardDate}>{new Date(item.createdAt).toLocaleDateString("ro-RO")}</Text>
-      </BlurView>
-    </TouchableOpacity>
-  );
+    return (
+        <TouchableOpacity style={styles.card} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
+            <Image source={{ uri: item.imageUri }} style={styles.cardImage} resizeMode="cover" />
+            {paths.length > 0 && (
+                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                    <Svg width={CARD_W} height={CARD_H - 44}>
+                        {paths.map((p, i) => (
+                            <Path key={i} d={pathsToD(p.points)} stroke={p.color}
+                                strokeWidth={p.strokeWidth * 0.3} strokeLinecap="round"
+                                strokeLinejoin="round" fill="none" />
+                        ))}
+                    </Svg>
+                </View>
+            )}
+            {paths.length > 0 && (
+                <View style={styles.badge}>
+                    <Text style={styles.badgeText}>✏️ {paths.length}</Text>
+                </View>
+            )}
+            <BlurView intensity={60} tint="dark" style={styles.cardFooter}>
+                <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+                <Text style={styles.cardDate}>{new Date(item.createdAt).toLocaleDateString("ro-RO")}</Text>
+            </BlurView>
+        </TouchableOpacity>
+    );
 }
 
 export default function FeedScreen() {
-  const [posters, setPosters] = useState<PosterEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
+    const [posters, setPosters] = useState<PosterEntry[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [deleteModal, setDeleteModal] = useState<{ visible: boolean; id: string; title: string }>({
+        visible: false,
+        id: "",
+        title: "",
+    });
+    const router = useRouter();
 
-  useFocusEffect(
-    useCallback(() => {
-      setLoading(true);
-      syncPostersFromSupabase().finally(() => {
-        getAllPosters().then((all) => {
-          const sorted = [...all].sort((a, b) => {
-            const aHasDrawing = a.drawingData !== "[]" && a.drawingData !== "";
-            const bHasDrawing = b.drawingData !== "[]" && b.drawingData !== "";
-            if (aHasDrawing && !bHasDrawing) return -1;
-            if (!aHasDrawing && bHasDrawing) return 1;
-            return b.createdAt - a.createdAt;
-          });
-          setPosters(sorted);
-          setLoading(false);
-        });
-      });
-    }, [])
-  );
+    useFocusEffect(
+        useCallback(() => {
+            setLoading(true);
+            syncPostersFromSupabase().finally(() => {
+                getAllPosters().then((all) => {
+                    const sorted = [...all].sort((a, b) => {
+                        const aHasDrawing = a.drawingData !== "[]" && a.drawingData !== "";
+                        const bHasDrawing = b.drawingData !== "[]" && b.drawingData !== "";
+                        if (aHasDrawing && !bHasDrawing) return -1;
+                        if (!aHasDrawing && bHasDrawing) return 1;
+                        return b.createdAt - a.createdAt;
+                    });
+                    setPosters(sorted);
+                    setLoading(false);
+                });
+            });
+        }, [])
+    );
 
-  const handleDelete = useCallback((id: string, title: string) => {
-    Alert.alert("DELETE_POSTER", `Remove "${title}" from the system?`, [
-      { text: "CANCEL", style: "cancel" },
-      {
-        text: "DELETE", style: "destructive",
-        onPress: async () => {
-          await deletePoster(id);
-          setPosters((prev) => prev.filter((p) => p.id !== id));
-        },
-      },
-    ]);
-  }, []);
+    const handleDeleteRequest = useCallback((id: string, title: string) => {
+        setDeleteModal({ visible: true, id, title });
+    }, []);
 
-  return (
-    <AppBackground>
-      <View style={styles.container}>
-        {/* Header */}
-        <BlurView intensity={80} tint="dark" style={styles.header}>
-          <View style={styles.logoBox}>
-            <Text style={styles.logoTextMain}>GLITCH_</Text>
-            <Text style={styles.logoTextSub}>TAG</Text>
-          </View>
-          <Text style={styles.headerSub}>POSTER_FEED</Text>
-        </BlurView>
+    const closeDeleteModal = useCallback(() => {
+        setDeleteModal({ visible: false, id: "", title: "" });
+    }, []);
 
-        {loading ? (
-          <View style={styles.center}>
-            <ActivityIndicator size="large" color="#007AFF" />
-          </View>
-        ) : posters.length === 0 ? (
-          <View style={styles.center}>
-            <BlurView intensity={80} tint="dark" style={styles.emptyBox}>
-              <Text style={styles.emptyIcon}>📡</Text>
-              <Text style={styles.emptyTitle}>NO_SIGNAL</Text>
-              <Text style={styles.emptySubtitle}>
-                No posters detected.{"\n"}Go to SCAN to tag your first target.
-              </Text>
-              <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push("/scan")}>
-                <Text style={styles.emptyBtnText}>INITIALIZE SCAN</Text>
-              </TouchableOpacity>
-            </BlurView>
-          </View>
-        ) : (
-          <FlatList
-            data={posters}
-            keyExtractor={(item) => item.id}
-            numColumns={2}
-            contentContainerStyle={styles.grid}
-            columnWrapperStyle={styles.row}
-            ListHeaderComponent={
-              <View style={styles.listHeader}>
-                <Text style={styles.listHeaderText}>
-                  {posters.length} TARGET{posters.length !== 1 ? "S" : ""}_TAGGED
-                </Text>
-              </View>
-            }
-            renderItem={({ item }) => (
-              <PosterCard
-                item={item}
-                onPress={() => router.push({ pathname: "/[id]", params: { id: item.id } })}
-                onLongPress={() => handleDelete(item.id, item.title)}
-              />
-            )}
-          />
-        )}
+    const confirmDelete = useCallback(async () => {
+        const posterId = deleteModal.id;
+        if (!posterId) {
+            closeDeleteModal();
+            return;
+        }
+        await deletePoster(posterId);
+        setPosters((prev) => prev.filter((p) => p.id !== posterId));
+        closeDeleteModal();
+    }, [deleteModal.id, closeDeleteModal]);
 
-        <BottomNav activeTab="feed" />
-      </View>
-    </AppBackground>
-  );
+    return (
+        <AppBackground>
+            <View style={styles.container}>
+                {/* Header */}
+                <BlurView intensity={80} tint="dark" style={styles.header}>
+                    <View style={styles.logoBox}>
+                        <Text style={styles.logoTextMain}>GLITCH_</Text>
+                        <Text style={styles.logoTextSub}>TAG</Text>
+                    </View>
+                    <Text style={styles.headerSub}>POSTER_FEED</Text>
+                </BlurView>
+
+                {loading ? (
+                    <View style={styles.center}>
+                        <ActivityIndicator size="large" color="#007AFF" />
+                    </View>
+                ) : posters.length === 0 ? (
+                    <View style={styles.center}>
+                        <BlurView intensity={80} tint="dark" style={styles.emptyBox}>
+                            <Text style={styles.emptyIcon}>📡</Text>
+                            <Text style={styles.emptyTitle}>NO_SIGNAL</Text>
+                            <Text style={styles.emptySubtitle}>
+                                No posters detected.{"\n"}Go to SCAN to tag your first target.
+                            </Text>
+                            <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push("/scan")}>
+                                <Text style={styles.emptyBtnText}>INITIALIZE SCAN</Text>
+                            </TouchableOpacity>
+                        </BlurView>
+                    </View>
+                ) : (
+                    <FlatList
+                        data={posters}
+                        keyExtractor={(item) => item.id}
+                        numColumns={2}
+                        contentContainerStyle={styles.grid}
+                        columnWrapperStyle={styles.row}
+                        ListHeaderComponent={
+                            <View style={styles.listHeader}>
+                                <Text style={styles.listHeaderText}>
+                                    {posters.length} TARGET{posters.length !== 1 ? "S" : ""}_TAGGED
+                                </Text>
+                            </View>
+                        }
+                        renderItem={({ item }) => (
+                            <PosterCard
+                                item={item}
+                                onPress={() => router.push({ pathname: "/[id]", params: { id: item.id } })}
+                                onLongPress={() => handleDeleteRequest(item.id, item.title)}
+                            />
+                        )}
+                    />
+                )}
+
+                <Modal visible={deleteModal.visible} animationType="fade" transparent>
+                    <View style={styles.modalOverlay}>
+                        <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
+                            <View style={styles.alertHeaderBox}>
+                                <Text style={styles.alertHeaderTextMain}>FEED</Text>
+                                <Text style={styles.alertHeaderTextSub}> STATUS</Text>
+                            </View>
+                            <View style={styles.alertIconCircle}>
+                                <Text style={styles.alertIconText}>!</Text>
+                            </View>
+                            <Text style={styles.alertTitle}>DELETE POSTER</Text>
+                            <Text style={styles.alertMessage}>
+                                Remove "{deleteModal.title}" from the system?
+                            </Text>
+                            <View style={styles.alertActions}>
+                                <TouchableOpacity style={styles.alertCancelButton} onPress={closeDeleteModal}>
+                                    <Text style={styles.alertCancelButtonText}>CANCEL</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.alertDeleteButton} onPress={confirmDelete}>
+                                    <Text style={styles.alertDeleteButtonText}>DELETE</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </BlurView>
+                    </View>
+                </Modal>
+
+                <BottomNav activeTab="feed" />
+            </View>
+        </AppBackground>
+    );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: {
-    paddingTop: 55, paddingBottom: 15, paddingHorizontal: 25,
-    borderBottomWidth: 1, borderBottomColor: "rgba(0,122,255,0.3)",
-    alignItems: "center", backgroundColor: "rgba(0,0,0,0.3)",
-  },
-  logoBox: {
-    flexDirection: "row", backgroundColor: "rgba(0,122,255,0.1)",
-    paddingHorizontal: 16, paddingVertical: 6,
-    borderRadius: 12, borderWidth: 1, borderColor: "#007AFF", marginBottom: 4,
-  },
-  logoTextMain: { color: "#fff", fontSize: 20, fontWeight: "bold" },
-  logoTextSub: { color: "#007AFF", fontSize: 20, fontWeight: "bold" },
-  headerSub: { color: "#555", fontSize: 11, letterSpacing: 3, marginTop: 4 },
-  emptyBox: {
-    margin: 30, padding: 35, borderRadius: 24, alignItems: "center",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
-    backgroundColor: "rgba(0,0,0,0.4)", overflow: "hidden",
-  },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyTitle: { color: "#fff", fontSize: 20, fontWeight: "bold", letterSpacing: 2, marginBottom: 8 },
-  emptySubtitle: { color: "#888", fontSize: 13, textAlign: "center", lineHeight: 20, marginBottom: 24 },
-  emptyBtn: { backgroundColor: "#007AFF", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
-  emptyBtnText: { color: "#fff", fontWeight: "bold", letterSpacing: 2 },
-  listHeader: { paddingHorizontal: CARD_GAP, paddingTop: 16, paddingBottom: 8 },
-  listHeaderText: { color: "#444", fontSize: 11, letterSpacing: 2 },
-  grid: { paddingBottom: 100 },
-  row: { paddingHorizontal: CARD_GAP, gap: CARD_GAP, marginBottom: CARD_GAP },
-  card: {
-    width: CARD_W, height: CARD_H, borderRadius: 16, overflow: "hidden",
-    borderWidth: 1, borderColor: "rgba(0,122,255,0.2)", backgroundColor: "#111",
-  },
-  cardImage: { width: CARD_W, height: CARD_H - 44 },
-  cardFooter: {
-    height: 44, paddingHorizontal: 10, justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.5)", overflow: "hidden",
-  },
-  cardTitle: { color: "#fff", fontWeight: "700", fontSize: 11, letterSpacing: 1 },
-  cardDate: { color: "#555", fontSize: 10, marginTop: 2 },
-  badge: {
-    position: "absolute", top: 8, right: 8,
-    backgroundColor: "rgba(0,122,255,0.85)",
-    borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2,
-  },
-  badgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+    container: { flex: 1 },
+    center: { flex: 1, justifyContent: "center", alignItems: "center" },
+    header: {
+        paddingTop: 55, paddingBottom: 15, paddingHorizontal: 25,
+        borderBottomWidth: 1, borderBottomColor: "rgba(0,122,255,0.3)",
+        alignItems: "center", backgroundColor: "rgba(0,0,0,0.3)",
+    },
+    logoBox: {
+        flexDirection: "row", backgroundColor: "rgba(0,122,255,0.1)",
+        paddingHorizontal: 16, paddingVertical: 6,
+        borderRadius: 12, borderWidth: 1, borderColor: "#007AFF", marginBottom: 4,
+    },
+    logoTextMain: { color: "#fff", fontSize: 20, fontWeight: "bold" },
+    logoTextSub: { color: "#007AFF", fontSize: 20, fontWeight: "bold" },
+    headerSub: { color: "#555", fontSize: 11, letterSpacing: 3, marginTop: 4 },
+    emptyBox: {
+        margin: 30, padding: 35, borderRadius: 24, alignItems: "center",
+        borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+        backgroundColor: "rgba(0,0,0,0.4)", overflow: "hidden",
+    },
+    emptyIcon: { fontSize: 48, marginBottom: 12 },
+    emptyTitle: { color: "#fff", fontSize: 20, fontWeight: "bold", letterSpacing: 2, marginBottom: 8 },
+    emptySubtitle: { color: "#888", fontSize: 13, textAlign: "center", lineHeight: 20, marginBottom: 24 },
+    emptyBtn: { backgroundColor: "#007AFF", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
+    emptyBtnText: { color: "#fff", fontWeight: "bold", letterSpacing: 2 },
+    listHeader: { paddingHorizontal: CARD_GAP, paddingTop: 16, paddingBottom: 8 },
+    listHeaderText: { color: "#444", fontSize: 11, letterSpacing: 2 },
+    grid: { paddingBottom: 100 },
+    row: { paddingHorizontal: CARD_GAP, gap: CARD_GAP, marginBottom: CARD_GAP },
+    card: {
+        width: CARD_W, height: CARD_H, borderRadius: 16, overflow: "hidden",
+        borderWidth: 1, borderColor: "rgba(0,122,255,0.2)", backgroundColor: "#111",
+    },
+    cardImage: { width: CARD_W, height: CARD_H - 44 },
+    cardFooter: {
+        height: 44, paddingHorizontal: 10, justifyContent: "center",
+        backgroundColor: "rgba(0,0,0,0.5)", overflow: "hidden",
+    },
+    cardTitle: { color: "#fff", fontWeight: "700", fontSize: 11, letterSpacing: 1 },
+    cardDate: { color: "#555", fontSize: 10, marginTop: 2 },
+    badge: {
+        position: "absolute", top: 8, right: 8,
+        backgroundColor: "rgba(0,122,255,0.85)",
+        borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2,
+    },
+    badgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+    modalOverlay: {
+        position: "absolute", top: 0, right: 0, bottom: 0, left: 0,
+        backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", alignItems: "center",
+    },
+    customAlertCard: {
+        width: "80%", borderRadius: 25, padding: 30, alignItems: "center",
+        borderWidth: 1, borderColor: "rgba(0,122,255,0.4)",
+        overflow: "hidden", backgroundColor: "rgba(0,0,0,0.45)",
+    },
+    alertHeaderBox: { flexDirection: "row", marginBottom: 20 },
+    alertHeaderTextMain: { color: "#fff", fontSize: 14, fontWeight: "bold", letterSpacing: 2 },
+    alertHeaderTextSub: { color: "#007AFF", fontSize: 14, fontWeight: "bold", letterSpacing: 2 },
+    alertIconCircle: {
+        width: 50, height: 50, borderRadius: 25,
+        backgroundColor: "rgba(239,68,68,0.1)",
+        justifyContent: "center", alignItems: "center",
+        marginBottom: 15, borderWidth: 1, borderColor: "#ef4444",
+    },
+    alertIconText: { color: "#ef4444", fontSize: 24, fontWeight: "bold" },
+    alertTitle: { color: "#fff", fontSize: 16, fontWeight: "bold", letterSpacing: 1, marginBottom: 10 },
+    alertMessage: {
+        color: "rgba(255,255,255,0.6)", fontSize: 12,
+        textAlign: "center", lineHeight: 18, marginBottom: 20,
+    },
+    alertActions: { width: "100%", flexDirection: "row", gap: 10 },
+    alertCancelButton: {
+        flex: 1, borderWidth: 1, borderColor: "rgba(255,255,255,0.25)",
+        paddingVertical: 14, borderRadius: 12, alignItems: "center",
+        backgroundColor: "rgba(255,255,255,0.06)",
+    },
+    alertCancelButtonText: { color: "#fff", fontWeight: "bold", letterSpacing: 1 },
+    alertDeleteButton: {
+        flex: 1, backgroundColor: "#ef4444",
+        paddingVertical: 14, borderRadius: 12, alignItems: "center",
+    },
+    alertDeleteButtonText: { color: "#fff", fontWeight: "bold", letterSpacing: 1 },
 });

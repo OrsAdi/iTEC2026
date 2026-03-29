@@ -5,26 +5,32 @@ import * as ImageManipulator from "expo-image-manipulator";
 import { useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
-import { computeHash, isSamePosterAsync } from "./lib/phash";
 import {
-    deletePoster,
-    generateId,
-    getAllPosters,
-    savePoster,
+  computeHash,
+  isExactPosterDuplicate,
+  posterSimilarity,
+} from "./lib/phash_v3";
+import {
+  deletePoster,
+  generateId,
+  getAllPosters,
+  savePoster,
 } from "./lib/storage";
 
 const FRAME_W = 260;
 const FRAME_H = 340;
+const DUPLICATE_SIMILARITY_THRESHOLD = 0.72;
+const VERY_SIMILAR_THRESHOLD = 0.62;
 
 export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -40,7 +46,15 @@ export default function ScanScreen() {
     visible: boolean;
     posterId: string;
     posterTitle: string;
-  }>({ visible: false, posterId: "", posterTitle: "" });
+    similarPosterTitle: string;
+    similarityScore: number;
+  }>({
+    visible: false,
+    posterId: "",
+    posterTitle: "",
+    similarPosterTitle: "",
+    similarityScore: 0,
+  });
   const [facing] = useState<CameraType>("back");
   const cameraRef = useRef<CameraView>(null);
   const router = useRouter();
@@ -78,7 +92,13 @@ export default function ScanScreen() {
   // ── New poster modal handlers ───────────────────────────────────────────
 
   const closeNewPosterModal = useCallback(() => {
-    setNewPosterModal({ visible: false, posterId: "", posterTitle: "" });
+    setNewPosterModal({
+      visible: false,
+      posterId: "",
+      posterTitle: "",
+      similarPosterTitle: "",
+      similarityScore: 0,
+    });
   }, []);
 
   const handleNewPosterAnnotate = useCallback(() => {
@@ -144,21 +164,60 @@ export default function ScanScreen() {
 
       setProcessingText("Recunosc afișul...");
       const allPosters = await getAllPosters();
-      let duplicate = null;
+      let exactDuplicate: (typeof allPosters)[number] | null = null;
+      let similarCandidate: (typeof allPosters)[number] | null = null;
+      let bestScore = 0;
 
       for (const poster of allPosters) {
-        const same = await isSamePosterAsync(poster.hash, hash);
-        if (same) {
-          duplicate = poster;
+        let candidateHash = poster.hash;
+
+        // Migrează hash-urile vechi la formatul nou pentru comparații stabile.
+        if (!candidateHash.startsWith("v4|")) {
+          try {
+            candidateHash = await computeHash(poster.imageUri);
+            await savePoster({
+              ...poster,
+              hash: candidateHash,
+              updatedAt: Date.now(),
+            });
+          } catch {
+            candidateHash = poster.hash;
+          }
+        }
+
+        const exactNow = isExactPosterDuplicate(candidateHash, hash);
+        if (exactNow) {
+          exactDuplicate = poster;
           break;
+        }
+
+        const score = posterSimilarity(candidateHash, hash);
+        if (score > bestScore) {
+          bestScore = score;
+          similarCandidate = poster;
         }
       }
 
-      if (duplicate) {
+      // 3 stări: duplicat (exact sau aproape identic), foarte asemănător, sau nou.
+      const similarityDuplicate =
+        exactDuplicate === null &&
+        similarCandidate !== null &&
+        bestScore >= DUPLICATE_SIMILARITY_THRESHOLD;
+
+      const isDuplicate = exactDuplicate !== null || similarityDuplicate;
+      const duplicateTarget = exactDuplicate ?? (similarityDuplicate ? similarCandidate : null);
+
+      const isVerySimilar =
+        similarCandidate !== null &&
+        bestScore >= VERY_SIMILAR_THRESHOLD &&
+        bestScore < DUPLICATE_SIMILARITY_THRESHOLD &&
+        !isDuplicate;
+
+      if (isDuplicate && duplicateTarget) {
         setDuplicateModal({
           visible: true,
-          posterId: duplicate.id,
-          posterTitle: duplicate.title,
+          posterId: duplicateTarget.id,
+          posterTitle: duplicateTarget.title,
           tempUri: destUri,
         });
       } else {
@@ -173,7 +232,14 @@ export default function ScanScreen() {
           updatedAt: Date.now(),
           title,
         });
-        setNewPosterModal({ visible: true, posterId: id, posterTitle: title });
+        setNewPosterModal({
+          visible: true,
+          posterId: id,
+          posterTitle: title,
+          similarPosterTitle:
+            isVerySimilar && similarCandidate ? similarCandidate.title : "",
+          similarityScore: isVerySimilar ? bestScore : 0,
+        });
       }
     } catch (err: any) {
       Alert.alert("Eroare", err?.message ?? "Ceva nu a funcționat.");
@@ -290,7 +356,9 @@ export default function ScanScreen() {
             </View>
             <Text style={styles.alertTitle}>AFIȘ NOU SALVAT</Text>
             <Text style={styles.alertMessage}>
-              "{newPosterModal.posterTitle}" a fost adăugat în feed.
+              {newPosterModal.similarPosterTitle
+                ? `"${newPosterModal.posterTitle}" a fost salvat ca nou. Seamănă cu "${newPosterModal.similarPosterTitle}" (${Math.round(newPosterModal.similarityScore * 100)}%).`
+                : `"${newPosterModal.posterTitle}" a fost adăugat în feed.`}
             </Text>
             <TouchableOpacity style={styles.alertButton} onPress={handleNewPosterAnnotate}>
               <Text style={styles.alertButtonText}>✏️ ADNOTEAZĂ</Text>
